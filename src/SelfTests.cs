@@ -268,6 +268,99 @@ public static class SelfTests
             var dismiss=(System.Windows.Controls.Button)owner.FindName("DismissUpdateButton");dismiss.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
             Require(notice.Visibility==Visibility.Collapsed&&owner.IsVisible);owner.Close();
         });
+        Test("Actual chest appearance overrides misleading spawner names", () =>
+        {
+            Require(ContainerKind.Resolve("AlwaysSpawn_RareChest_C","Loot_Chest_PirateTreasure")==ChestKinds.Normal);
+            Require(ContainerKind.Resolve("AlwaysSpawn_RareChest_C","Loot_Chest_PirateTreasure_Legendary")==ChestKinds.Rare);
+            Require(ContainerKind.Resolve("Tiered_Chest_Athena_C","Loot_Chest_PirateTreasure_Legendary_Searched")==ChestKinds.Rare);
+            Require(ContainerKind.Resolve("AlwaysSpawn_RareChest_C","")==ChestKinds.Other);
+            Require(ContainerKind.Resolve("B_Athena_BuriedChest_Chest_C","Loot_Chest_PirateTreasure")==ChestKinds.Buried);
+            Require(ChestFilter.Category(new ChestRecord{Blueprint="AlwaysSpawn_RareChest_C",Kind=ChestKinds.Normal})=="normal");
+            Require(ContainerKind.Resolve("Tiered_Chest_Athena_C","Loot_Chest_SpritePoster")==ChestKinds.PosterChest);
+            var lateMesh=new ContainerTracker();lateMesh.Observe("one","AlwaysSpawn_RareChest_C",5,7,true,null,"");lateMesh.Observe("one","?",0,null,null,null,"Loot_Chest_PirateTreasure");
+            Require(ContainerKind.Resolve(lateMesh.Interactions.Single().Blueprint,lateMesh.Interactions.Single().Mesh)==ChestKinds.Normal);
+        });
+        Test("Container deltas retain mesh and count a physical chest only once", () =>
+        {
+            var tracker=new ContainerTracker();
+            tracker.Observe("path:one","AlwaysSpawn_RareChest_C",1,null,null,null,"Loot_Chest_PirateTreasure");
+            tracker.Observe("path:one","AlwaysSpawn_RareChest_C",20,7,true,null,"");
+            tracker.Observe("path:one","AlwaysSpawn_RareChest_C",25,7,null,true,"");
+            tracker.Observe("path:one","AlwaysSpawn_RareChest_C",40,7,true,null,"");
+            var rows=tracker.Interactions.ToArray();Require(rows.Length==1&&rows[0].Time==20&&!rows[0].Destroyed&&rows[0].Mesh=="Loot_Chest_PirateTreasure");
+        });
+        Test("Late searcher in a separate replay delta is recovered", () =>
+        {
+            var tracker=new ContainerTracker();tracker.Observe("one","Tiered_Chest_Athena_C",1,null,true,null,"");
+            tracker.Observe("one","Tiered_Chest_Athena_C",1.4f,7,null,null,"");
+            Require(tracker.Interactions.Single().Pawn==7&&tracker.Interactions.Single().Time==1);
+        });
+        Test("Cancelled or stale searchers do not claim somebody else's chest", () =>
+        {
+            var tracker=new ContainerTracker();tracker.Observe("cancel","Tiered_Chest_Athena_C",1,7,null,null,"");
+            tracker.Observe("cancel","Tiered_Chest_Athena_C",2,0,null,null,"");tracker.Observe("cancel","Tiered_Chest_Athena_C",3,null,true,null,"");
+            tracker.Observe("stale","Tiered_Chest_Athena_C",1,7,null,null,"");tracker.Observe("stale","Tiered_Chest_Athena_C",9,null,true,null,"");
+            tracker.Observe("stale","Tiered_Chest_Athena_C",12,7,null,null,"");Require(!tracker.Interactions.Any());
+        });
+        Test("Destroyed chests require an attributed terminal event", () =>
+        {
+            var tracker=new ContainerTracker();tracker.Observe("broken","Tiered_Chest_Athena_C",1,7,null,true,"");
+            tracker.Observe("just-nearby","Tiered_Chest_Athena_C",2,7,null,null,"Loot_Chest_PirateTreasure");
+            Require(tracker.Interactions.Count()==1&&tracker.Interactions.Single().Destroyed);
+        });
+        Test("Resolved actor aliases merge channel identities without duplicates", () =>
+        {
+            var tracker=new ContainerTracker();tracker.Observe("guid:1","Tiered_Chest_Athena_C",1,7,true,null,"");
+            tracker.Observe("path:same","Tiered_Chest_Athena_C",2,7,true,null,"Loot_Chest_PirateTreasure");
+            tracker.Alias("guid:1","path:same");tracker.Observe("guid:1","Tiered_Chest_Athena_C",3,7,true,null,"");
+            Require(tracker.Interactions.Count()==1&&tracker.Interactions.Single().Time==1&&tracker.Interactions.Single().Mesh=="Loot_Chest_PirateTreasure");
+        });
+        Test("Repeated actor records cannot inflate match totals", () =>
+        {
+            var item=C("Tiered_Chest_Athena_C");item.ActorKey="same";
+            var match=ChestFilter.Convert(new MatchRecord{IsReplayOwner=true,PlayerName="Test",Chests=[item,item]});Require(match.Total==1);
+        });
+        Test("History recount replaces results once and preserves the starting balance and backup", () =>
+        {
+            var store=new TrackerStore(Path.Combine(root,"recount"));store.State.Baselines[""]=100;
+            var old=new MatchEntry{Id="one",Normal=20,Rare=7};store.State.Matches.Add(old);store.Save();
+            var request=new RecountRequest(old,null,"5||one","fixture");
+            Require(HistoryRecount.Apply(store,request,new MatchEntry{Id="one",Normal=23,Rare=4}));store.Save();
+            var loaded=new TrackerStore(store.Folder);Require(loaded.Total==127&&loaded.State.Matches.Count==1&&loaded.State.Matches[0].CounterVersion==CounterSchema.Version);
+            Require(HistoryRecount.Next(loaded,Array.Empty<FileInfo>())==null);
+            using var backup=JsonDocument.Parse(System.IO.File.ReadAllText(Path.Combine(store.Folder,"history-before-5.0.json")));
+            Require(backup.RootElement.GetProperty("Matches")[0].GetProperty("Rare").GetInt32()==7);
+        });
+        Test("Recount refuses another account and keeps unavailable replay results", () =>
+        {
+            var store=new TrackerStore(Path.Combine(root,"recount-missing"));var old=new MatchEntry{Id="one",Profile="owner",Normal=12,Rare=2,File="missing.replay"};store.State.Matches.Add(old);store.Save();
+            var request=HistoryRecount.Next(store,Array.Empty<FileInfo>())!;bool rejected=false;
+            try{HistoryRecount.Apply(store,request,new MatchEntry{Id="one",Profile="other",Normal=100});}catch(InvalidDataException){rejected=true;}
+            Require(rejected&&store.State.Matches[0]==old);
+            HistoryRecount.Failed(store,request,"Исходный повтор недоступен");store.Save();
+            Require(old.Total==14&&old.CounterVersion<CounterSchema.Version&&HistoryRecount.Next(store,Array.Empty<FileInfo>())==null);
+            string file=Path.Combine(store.Folder,"missing.replay");System.IO.File.WriteAllText(file,"reappeared");Require(HistoryRecount.Next(store,[new FileInfo(file)])!=null);
+        });
+        Test("Spirit reminder waits twenty seconds and resets for a new match", () =>
+        {
+            var store=new TrackerStore(Path.Combine(root,"reminder-delay"));var now=new DateTime(2026,11,9,10,0,0,DateTimeKind.Utc);
+            Require(ReminderPolicy.Queue(store,"match",now));Require(!ReminderPolicy.Ready(store.State,now.AddSeconds(19)));Require(ReminderPolicy.Ready(store.State,now.AddSeconds(20)));
+            new LobbyReminder(store).DismissForMatchStart();Require(!ReminderPolicy.Ready(store.State,now.AddMinutes(1)));
+        });
+        Test("Reward probabilities are cumulative estimates with zero and saturation handled", () =>
+        {
+            Require(RewardOdds.AtLeastOne(0,137500)==0);
+            Require(Math.Abs(RewardOdds.AtLeastOne(1,137500)-1d/137500)<1e-12);
+            Require(Math.Abs(RewardOdds.AtLeastOne(1000,137500)-(1-Math.Pow(1-1d/137500,1000)))<1e-12);
+            Require(RewardOdds.AtLeastOne(10000,137500)>RewardOdds.AtLeastOne(1000,137500));
+            Require(RewardOdds.Percent(RewardOdds.AtLeastOne(long.MaxValue,272)).StartsWith(">"));
+            Require(RewardOdds.Denominator("Скин")==1562500&&RewardOdds.Denominator("Жетоны доступа")==137500);
+        });
+        Test("Brand assets use the same chest geometry as the window logo", () =>
+        {
+            using var reader=new StreamReader(StoragePaths.Asset("logo.svg"));Require(reader.ReadToEnd().Contains(Brand.ChestPath));
+            Require(Brand.Logo.IsFrozen);using var icon=StoragePaths.Asset("app.ico");using var r=new BinaryReader(icon);Require(r.ReadUInt16()==0&&r.ReadUInt16()==1&&r.ReadUInt16()==1);
+        });
         Test("Single executable contains required resources and notices", () =>
         {
             foreach(string name in new[]{"map.png","chests.json","Notices.txt","app.ico"}) { using var stream=StoragePaths.Asset(name);Require(stream.Length>0); }

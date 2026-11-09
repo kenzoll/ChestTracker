@@ -50,6 +50,8 @@ public sealed class ReplayWatcher(TrackerStore store)
             var folder = store.State.ReplayFolder;
             if (!Directory.Exists(folder))
             {
+                var missing=HistoryRecount.Next(store,Array.Empty<FileInfo>());
+                if(missing!=null){HistoryRecount.Failed(store,missing,"Исходный повтор недоступен");changed=true;}
                 Phase = "setup"; Status = "Нужно включить запись повторов";
                 Detail = "В Fortnite: Настройки → Игра → Повторы → Записывать повторы. Затем сыграйте матч.";
                 FileCount = 0;
@@ -116,6 +118,29 @@ public sealed class ReplayWatcher(TrackerStore store)
                 Updated?.Invoke(added);
                 // Give the game time between CPU-intensive analyses.
                 return;
+            }
+            if(!pending)
+            {
+                var request=HistoryRecount.Next(store,files);
+                if(request!=null)
+                {
+                    if(request.File==null){HistoryRecount.Failed(store,request,"Исходный повтор недоступен");changed=true;return;}
+                    var oldHeader=ReplayProbe.Read(request.File.FullName);
+                    if(!oldHeader.Valid){HistoryRecount.Failed(store,request,"Исходный повтор повреждён");changed=true;return;}
+                    if(oldHeader.Live||oldHeader.MissingKey||DateTime.UtcNow-request.File.LastWriteTimeUtc<TimeSpan.FromSeconds(5))return;
+                    Phase="recounting";Status="Пересчитываю сохранённые матчи";Detail="Проверяю сундуки по новой системе. История и начальная сумма сохраняются.";Updated?.Invoke(false);
+                    var repaired=await AnalyzeAsync(request.File.FullName,token);token.ThrowIfCancellationRequested();
+                    request.File.Refresh();
+                    if(request.Stamp!=$"{request.File.Name}|{request.File.Length}|{request.File.LastWriteTimeUtc.Ticks}")return;
+                    if(repaired.Status=="ready"&&repaired.Match!=null)
+                    {
+                        try{HistoryRecount.Apply(store,request,repaired.Match);}
+                        catch(InvalidDataException e){HistoryRecount.Failed(store,request,e.Message);}
+                    }
+                    else if(repaired.Status=="waiting")return;
+                    else HistoryRecount.Failed(store,request,"Повтор не удалось прочитать новой системой");
+                    changed=true;return;
+                }
             }
             if (!pending)
             {

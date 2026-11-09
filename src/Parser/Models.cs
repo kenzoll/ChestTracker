@@ -8,6 +8,8 @@ public sealed class ChestRecord
     public float TimeSeconds { get; set; }
     public string Kind { get; set; } = "";
     public string Blueprint { get; set; } = "";
+    public string ActorKey { get; set; } = "";
+    public string Mesh { get; set; } = "";
     /// <summary>True when the chest was destroyed by the player instead of being opened.</summary>
     public bool Destroyed { get; set; }
     public List<string> Items { get; set; } = new();

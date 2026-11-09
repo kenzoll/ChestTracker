@@ -13,6 +13,7 @@ public static class Program
     public static int Main(string[] args)
     {
         L.Set("en");
+        if(args.Length==2&&args[0]=="--render-brand"){Brand.WriteAssets(args[1]);return 0;}
         if(args.Length==2&&args[0]=="--apply-update")return AppUpdates.Apply(args[1]);
         if (args.Length == 3 && args[0] == "--analyze")
         {
@@ -47,6 +48,7 @@ public static class Program
             return result.Status == "error" ? 2 : 0;
         }
         if (args.Length == 2 && args[0] == "--self-test") return SelfTests.Run(args[1]);
+        if(args.Length==3&&args[0]=="--recount-history")return RecountHistory(args[1],args[2]);
         if (args.Length == 3 && args[0] == "--verify-replay") return VerifyReplay(args[1], args[2]);
         if (args.Length == 2 && args[0] == "--render-ui") return MainWindow.RenderPreview(Path.GetFullPath(args[1]));
         string folder = StoragePaths.DataDirectory;
@@ -87,6 +89,23 @@ public static class Program
             MessageBox.Show(e.Message + "\n\nИстория: " + folder + "\nРезервная копия: tracker-v2.json.bak.", "Ошибка запуска");
             return 1;
         }
+    }
+    private static int RecountHistory(string folder,string report)
+    {
+        try
+        {
+            var store=new TrackerStore(Path.GetFullPath(folder));
+            string balances=JsonSerializer.Serialize(store.State.Baselines);
+            int count=store.State.Matches.Count;
+            var before=store.State.Matches.Select(m=>new{m.Id,m.Profile,m.Normal,m.Rare,m.Broken}).ToArray();
+            var watcher=new ReplayWatcher(store);
+            for(int i=0;i<count*3+4;i++)watcher.ScanAsync().GetAwaiter().GetResult();
+            watcher.Stop();
+            if(count!=store.State.Matches.Count||balances!=JsonSerializer.Serialize(store.State.Baselines))throw new InvalidDataException("Recount changed match count or baseline");
+            var result=new{Status="ready",Before=before,After=store.State.Matches.Select(m=>new{m.Id,m.Normal,m.Rare,m.Broken,m.CounterVersion,m.RecountStatus}),Backup=File.Exists(Path.Combine(store.Folder,"history-before-5.0.json"))};
+            File.WriteAllText(report,JsonSerializer.Serialize(result,TrackerStore.Json));return 0;
+        }
+        catch(Exception e){File.WriteAllText(report,JsonSerializer.Serialize(new{Status="error",Message=e.Message}));return 1;}
     }
     private static int VerifyReplay(string replay, string report)
     {

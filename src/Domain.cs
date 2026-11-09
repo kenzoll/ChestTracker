@@ -12,6 +12,8 @@ public sealed class ChestEvent
     public double Seconds { get; set; }
     public string Category { get; set; } = "";
     public string Blueprint { get; set; } = "";
+    public string ActorKey { get; set; } = "";
+    public string Mesh { get; set; } = "";
     public bool Counted { get; set; }
     public bool Destroyed { get; set; }
     public string Reason { get; set; } = "";
@@ -31,6 +33,8 @@ public sealed class MatchEntry
     public string Mode { get; set; } = "";
     public string Source { get; set; } = "Повтор";
     public string GameVersion { get; set; } = "";
+    public int CounterVersion { get; set; }
+    public string RecountStatus { get; set; } = "";
     public List<ChestEvent> Events { get; set; } = [];
     public int Total => Normal + Rare;
     public string DateLabel => GameClock.Local(TimeUtc).ToString("dd.MM.yyyy  HH:mm");
@@ -61,6 +65,8 @@ public sealed class TrackerState
     public string PendingReminder { get; set; } = "";
     public string LastReminder { get; set; } = "";
     public HashSet<string> ReminderQueuedFiles { get; set; } = [];
+    public Dictionary<string,string> RecountAttempts { get; set; } = [];
+    public DateTime PendingReminderNotBeforeUtc { get; set; }
     public int TimeEncoding { get; set; } = 2;
     public HashSet<string> FoundRewards { get; set; } = [];
 }
@@ -187,7 +193,7 @@ public static class ChestFilter
         var b = chest.Blueprint.ToLowerInvariant();
         // Fail closed. Never infer eligibility just from the word "chest".
         if (new[] { "ammo", "food", "cooler", "barrel", "relic", "extract", "goldenchest", "treasurehandler", "sprite", "spirit", "booty", "buried" }.Any(b.Contains)) return "";
-        if (chest.Kind == ChestKinds.Rare || (b.Contains("chest") && (b.Contains("rare") || b.Contains("legendary")))) return "rare";
+        if (chest.Kind == ChestKinds.Rare) return "rare";
         if (chest.Kind == ChestKinds.Normal) return "normal";
         return "";
     }
@@ -195,12 +201,13 @@ public static class ChestFilter
     {
         if (!record.IsReplayOwner || string.IsNullOrWhiteSpace(record.PlayerName))
             throw new InvalidDataException("Не удалось надёжно определить владельца повтора. Матч не учтён.");
-        var events = record.Chests.Select(c => new ChestEvent { Seconds = c.TimeSeconds, Blueprint = c.Blueprint,
+        var unique=record.Chests.Where(c=>string.IsNullOrEmpty(c.ActorKey)).Concat(record.Chests.Where(c=>!string.IsNullOrEmpty(c.ActorKey)).GroupBy(c=>c.ActorKey).Select(g=>g.First()));
+        var events = unique.Select(c => new ChestEvent { Seconds = c.TimeSeconds, Blueprint = c.Blueprint, ActorKey=c.ActorKey, Mesh=c.Mesh,
             Category = Category(c), Counted = Category(c) != "", Destroyed = c.Destroyed,
             Reason = Category(c) == "" ? "Тип вне фильтра / неизвестен" : c.Destroyed ? "Разрушен владельцем повтора" : "Открыт владельцем повтора" }).ToList();
         return new MatchEntry { Id = record.SessionId, Profile = record.EpicId ?? record.PlayerName, Player = record.PlayerName,
             TimeUtc = GameClock.ReplayUtc(record.MatchStartUtc ?? record.AnalyzedAtUtc), File = record.ReplayFile,
-            Mode = record.Playlist ?? "", GameVersion = record.GameVersion ?? "", Events = events,
+            Mode = record.Playlist ?? "", GameVersion = record.GameVersion ?? "", Events = events, CounterVersion=CounterSchema.Version,
             Normal = events.Count(e => e.Category == "normal"),
             Rare = events.Count(e => e.Category == "rare"), Broken = events.Count(e => e.Counted && e.Destroyed),
             Ignored = events.Count(e => !e.Counted) + record.AmmoBoxesOpened + record.OtherContainersOpened };

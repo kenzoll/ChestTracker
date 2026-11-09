@@ -15,7 +15,7 @@ public sealed class MatchDetailsWindow : Window
     private static TextBlock Label(string text,double size=13,Brush? color=null)=>new(){Text=text,FontSize=size,Foreground=color??Brushes.White,TextWrapping=TextWrapping.Wrap};
     public MatchDetailsWindow(MatchEntry match,Window owner,bool animations)
     {
-        Owner=owner;Resources=owner.Resources;Title="Подробности матча";Width=880;Height=760;MinWidth=720;MinHeight=580;
+        Owner=owner;Icon=Brand.Logo;Resources=owner.Resources;Title="Подробности матча";Width=880;Height=760;MinWidth=720;MinHeight=580;
         WindowStartupLocation=WindowStartupLocation.CenterOwner;Background=new SolidColorBrush(Color.FromRgb(8,8,10));Foreground=Brushes.White;FontFamily=new FontFamily("Segoe UI");
         SourceInitialized+=(_,_)=>{int dark=1;DwmSetWindowAttribute(new System.Windows.Interop.WindowInteropHelper(this).Handle,20,ref dark,sizeof(int));};
         EventRows=match.Events.Where(e=>e.Counted&&(e.Category=="normal"||e.Category=="rare")).OrderBy(e=>e.Seconds)
@@ -60,7 +60,7 @@ public sealed class MatchDetailsWindow : Window
         Grid.SetRow(body,2);root.Children.Add(body);
         var footer=new Grid{Margin=new Thickness(0,18,0,0)};footer.ColumnDefinitions.Add(new());footer.ColumnDefinitions.Add(new(){Width=GridLength.Auto});
         var details=new StackPanel{Margin=new Thickness(0,12,20,0)};
-        foreach(var (name,value) in new[]{("Файл",match.File),("Режим",match.Mode),("Версия игры",match.GameVersion)})
+        foreach(var (name,value) in new[]{("Файл",match.File),("Режим",match.Mode),("Версия игры",match.GameVersion),("Проверка счёта",match.RecountStatus)})
             if(!string.IsNullOrWhiteSpace(value))details.Children.Add(Label(name+": "+value,11,Muted));
         var more=new Expander{Header="Информация о записи",Foreground=Muted,Content=details,VerticalAlignment=VerticalAlignment.Center,Visibility=details.Children.Count>0?Visibility.Visible:Visibility.Collapsed};footer.Children.Add(more);
         var close=new Button{Content="Закрыть",MinWidth=110,Style=(Style)Resources["Primary"],VerticalAlignment=VerticalAlignment.Bottom,IsCancel=true};close.Click+=(_,_)=>Close();Grid.SetColumn(close,1);footer.Children.Add(close);Grid.SetRow(footer,3);root.Children.Add(footer);Content=root;

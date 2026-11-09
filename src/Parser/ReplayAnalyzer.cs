@@ -70,9 +70,11 @@ public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
                 : null;
     }
 
+    private readonly ContainerTracker containers=new();
+    private readonly Dictionary<string,(uint Guid,float Time)> containerMeshes=[];
+    private readonly Dictionary<uint,string> actorIdentities=[];
     private readonly Dictionary<uint, string> _channelKey = new();
     private readonly Dictionary<uint, string> _channelLabel = new();
-    private readonly Dictionary<uint, uint> _lastSearcher = new();
     private readonly HashSet<string> _searched = new();
     private readonly List<SearchEvent> _searches = new();
     private readonly List<TossEvent> _tosses = new();
@@ -93,7 +95,7 @@ public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
     private readonly List<GrantEvent> _grants = new();
 
     /// <summary>Bump when the analysis changes so that existing replays are re-analyzed.</summary>
-    public const int CurrentVersion = 10;
+    public const int CurrentVersion = 11;
 
     private static readonly bool ProbeDebug = Environment.GetEnvironmentVariable("CHESTCOUNTER_DEBUG") == "4";
 
@@ -339,9 +341,18 @@ public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
         var actorPath = PathOf(channel?.ActorId);
 
         // Static (level placed) actors have no archetype; their actor path is unique per chest.
-        _channelKey[channelIndex] = !string.IsNullOrEmpty(actorPath) ? actorPath : $"guid:{channel?.ActorId}";
+        string key=!string.IsNullOrEmpty(actorPath)?"path:"+actorPath:channel?.ActorId is uint actorId&&actorId!=0?$"actor:{actorId}":"";
+        if(channel?.ActorId is uint stableGuid&&stableGuid!=0)
+        {
+            if(actorIdentities.TryGetValue(stableGuid,out var previous))
+            {
+                if(!string.IsNullOrEmpty(actorPath))containers.Alias(previous,key);
+                else key=previous;
+            }
+            actorIdentities[stableGuid]=key;
+        }
+        _channelKey[channelIndex]=key;
         _channelLabel[channelIndex] = CleanName(!string.IsNullOrEmpty(archetype) ? archetype : actorPath);
-        _lastSearcher.Remove(channelIndex);
         _equipChannelsSeen.Remove(channelIndex);
         _prizeChannelsSeen.Remove(channelIndex);
     }
@@ -365,32 +376,11 @@ public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
         switch (exportGroup)
         {
             case BaseContainer container:
-                if (container.SearchingPawn is uint searcher && searcher != 0)
-                {
-                    _lastSearcher[channelIndex] = searcher;
-                }
-
-                var containerKey = _channelKey.GetValueOrDefault(channelIndex, $"ch:{channelIndex}");
-                if (container.bAlreadySearched)
-                {
-                    if (_searched.Add(containerKey))
-                    {
-                        _searches.Add(new SearchEvent(
-                            Now,
-                            containerKey,
-                            _channelLabel.GetValueOrDefault(channelIndex, "?"),
-                            _lastSearcher.TryGetValue(channelIndex, out var s) ? s : null));
-                    }
-                }
-                else if (container.bDestroyed && container.SearchingPawn is uint destroyer && destroyer != 0)
-                {
-                    // Broken instead of opened (support destroyed, explosion...): the loot spills out and the
-                    // server sets SearchingPawn to whoever destroyed it. Counted once, like an opened chest.
-                    if (_searched.Add(containerKey))
-                    {
-                        _searches.Add(new SearchEvent(Now, containerKey, _channelLabel.GetValueOrDefault(channelIndex, "?"), destroyer, Destroyed: true));
-                    }
-                }
+                var containerKey=_channelKey.GetValueOrDefault(channelIndex, "");
+                if((container.StaticMesh is >0?container.StaticMesh:container.SearchedMesh) is uint meshGuid&&meshGuid!=0)containerMeshes[containerKey]=(meshGuid,Now);
+                containers.Observe(containerKey,_channelLabel.GetValueOrDefault(channelIndex,"?"),Now,
+                    container.SearchingPawn,container.bAlreadySearched,container.bDestroyed,
+                    CleanName(PathOf(container.StaticMesh) is {Length:>0} actualMesh?actualMesh:PathOf(container.SearchedMesh)));
                 break;
 
             case GrantedAbility ga when Environment.GetEnvironmentVariable("CHESTCOUNTER_DEBUG") is "1" or "2":
@@ -464,6 +454,8 @@ public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
     public MatchRecord Analyze(Stream stream, string file, string? username)
     {
         var replay = ReadReplay(stream);
+        foreach(var pair in containerMeshes.OrderBy(p=>p.Value.Time))containers.Observe(pair.Key,"?",0,null,null,null,CleanName(PathOf(pair.Value.Guid)));
+        _searches.AddRange(containers.Interactions.Select(c=>new SearchEvent(c.Time,c.Key,c.Blueprint,c.Pawn,c.Destroyed)));
 
         if (Environment.GetEnvironmentVariable("CHESTCOUNTER_DEBUG") == "4")
         {
@@ -521,11 +513,12 @@ public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
         var isRecorderTarget = recorderPs != null && targetPlayerStates.Contains(recorderPs.Value);
         var targetPawns = _pawnToPlayerState.Where(kv => targetPlayerStates.Contains(kv.Value)).Select(kv => kv.Key).ToHashSet();
 
+
         // --- Everything the target searched / interacted with ------------------------------------
         var interactions = _searches
             .Where(s => s.SearcherPawn is uint p && targetPawns.Contains(p))
             .OrderBy(s => s.Time)
-            .Select(s => (s.Time, Kind: ChestKinds.Classify(s.Label), s.Label, s.ActorKey, s.Destroyed))
+            .Select(s => (s.Time, Kind: ContainerKind.Resolve(s.Label,containers.MeshFor(s.ActorKey)), s.Label, s.ActorKey, s.Destroyed))
             .ToList();
 
         var chests = new List<ChestRecord>();
@@ -549,6 +542,8 @@ public sealed class ReplayAnalyzer : FortniteReplayReader.ReplayReader
                 Kind = search.Kind,
                 Blueprint = search.Label,
                 Destroyed = search.Destroyed,
+                ActorKey = search.ActorKey,
+                Mesh = containers.MeshFor(search.ActorKey),
                 Items = items,
                 TreasureItems = items.Where(i => TreasureItem.IsMatch(i) && !EventItem.IsMatch(i)).ToList(),
             });
@@ -814,7 +809,7 @@ public static class ChestKinds
         if (b.Contains("lootcannon") || b.Contains("cannon")) return Cannon;
         if (b.Contains("ammo")) return AmmoBox;
         if (b.Contains("foodbox") || b.Contains("food_box")) return FoodBox;
-        if (b.Contains("rarechest") || b.Contains("legendary") || b.Contains("rare_chest")) return Rare;
+        if (b.Contains("rarechest") || b.Contains("rare_chest") || b.Contains("chest_athena_rare") || b.Contains("legendarychest")) return Rare;
         if (b.Contains("buried")) return Buried;
         if (b.Contains("spriteposter") || b.Contains("booty")) return PosterChest;
         if (b.Contains("relic") || b.Contains("extraction")) return Extraction;

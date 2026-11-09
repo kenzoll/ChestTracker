@@ -15,6 +15,8 @@ public sealed class LobbyReminder(TrackerStore store)
     public Task CheckAsync()
     {
         if(stopped||busy||!store.State.SpiritReminder||string.IsNullOrEmpty(store.State.PendingReminder)||store.State.LastReminder==store.State.PendingReminder)return Task.CompletedTask;
+        if(store.State.PendingReminderNotBeforeUtc==default){store.State.PendingReminderNotBeforeUtc=DateTime.UtcNow.AddSeconds(ReminderPolicy.DelaySeconds);store.Save();}
+        if(!ReminderPolicy.Ready(store.State,DateTime.UtcNow))return Task.CompletedTask;
         busy=true;
         try
         {
@@ -31,18 +33,19 @@ public sealed class LobbyReminder(TrackerStore store)
     }
     public void DismissForMatchStart()
     {
-        toast?.Close();toast=null;
+        toast?.Close();toast=null;store.State.PendingReminderNotBeforeUtc=default;
         if(!string.IsNullOrEmpty(store.State.PendingReminder)){store.State.LastReminder=store.State.PendingReminder;store.State.PendingReminder="";store.Save();}
     }
     private void ShowToast()
     {
         toast?.Close();
         var work = SystemParameters.WorkArea;
-        toast = new Window { Width = 430, Height = 190, WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize,
+        toast = new Window { Icon=Brand.Logo, Width = 430, Height = 190, WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize,
             ShowInTaskbar = false, ShowActivated = false, Topmost = true, Background = Brushes.Transparent, AllowsTransparency = true,
             Left = work.Right - 450, Top = work.Bottom - 210 };
         var panel = new StackPanel { Margin = new Thickness(22) };
-        panel.Children.Add(new TextBlock { Text = "МАТЧ ЗАВЕРШЁН", Foreground = new SolidColorBrush(Color.FromRgb(180,180,180)), FontSize = 10 });
+        var heading=new StackPanel{Orientation=Orientation.Horizontal};heading.Children.Add(new Image{Source=Brand.Logo,Width=26,Height=26,Margin=new Thickness(0,0,10,0)});
+        heading.Children.Add(new TextBlock { VerticalAlignment=VerticalAlignment.Center, Text = "МАТЧ ЗАВЕРШЁН", Foreground = new SolidColorBrush(Color.FromRgb(180,180,180)), FontSize = 10 });panel.Children.Add(heading);
         panel.Children.Add(new TextBlock { Text = "Не забудьте поставить духа", Foreground = Brushes.White, FontSize = 21, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,12,0,9) });
         var done = new Button { Content = "Готово", Padding = new Thickness(18,7,18,7), Background = new SolidColorBrush(Color.FromRgb(203,41,57)), Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Left, Cursor = System.Windows.Input.Cursors.Hand };
         done.Click += (_, _) => toast?.Close();

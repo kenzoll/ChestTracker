@@ -1,4 +1,4 @@
-﻿using Unreal.Core.Attributes;
+using Unreal.Core.Attributes;
 using Unreal.Core.Contracts;
 using Unreal.Core.Models;
 using Unreal.Core.Models.Enums;
@@ -20,13 +20,13 @@ public abstract class BaseContainer : INetFieldExportGroup
     public DebuggingObject ForceMetadataRelevant { get; set; }
 
     [NetFieldExport("bDestroyed", RepLayoutCmdType.PropertyBool)]
-    public bool bDestroyed { get; set; }
+    public bool? bDestroyed { get; set; }
 
     [NetFieldExport("bInstantDeath", RepLayoutCmdType.PropertyBool)]
     public bool bInstantDeath { get; set; }
 
-    [NetFieldExport("StaticMesh", RepLayoutCmdType.Ignore)]
-    public uint StaticMesh { get; set; }
+    [NetFieldExport("StaticMesh", RepLayoutCmdType.PropertyObject)]
+    public uint? StaticMesh { get; set; }
 
     [NetFieldExport("AltMeshIdx", RepLayoutCmdType.Ignore)]
     public uint AltMeshIdx { get; set; }
@@ -46,17 +46,17 @@ public abstract class BaseContainer : INetFieldExportGroup
     [NetFieldExport("MaxHealth", RepLayoutCmdType.PropertyUInt16)]
     public ushort MaxHealth { get; set; }
 
-    [NetFieldExport("SearchedMesh", RepLayoutCmdType.Ignore)]
-    public uint SearchedMesh { get; set; }
+    [NetFieldExport("SearchedMesh", RepLayoutCmdType.PropertyObject)]
+    public uint? SearchedMesh { get; set; }
 
     [NetFieldExport("ReplicatedLootTier", RepLayoutCmdType.PropertyInt)]
-    public int ReplicatedLootTier { get; set; }
+    public int? ReplicatedLootTier { get; set; }
 
     [NetFieldExport("SearchingPawn", RepLayoutCmdType.PropertyObject)]
     public uint? SearchingPawn { get; set; }
 
     [NetFieldExport("bAlreadySearched", RepLayoutCmdType.PropertyBool)]
-    public bool bAlreadySearched { get; set; }
+    public bool? bAlreadySearched { get; set; }
 
     [NetFieldExport("BounceNormal", RepLayoutCmdType.PropertyVector)]
     public FVector BounceNormal { get; set; }

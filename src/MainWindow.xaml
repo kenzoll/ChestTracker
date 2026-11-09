@@ -70,23 +70,20 @@
     <Grid Margin="0,0,0,25">
       <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-        <Border Width="44" Height="44" CornerRadius="12" Background="#241114" BorderBrush="#742530" BorderThickness="1" Margin="0,0,14,0">
-          <Viewbox Margin="10"><Canvas Width="24" Height="24"><Path Stroke="White" StrokeThickness="1.5" StrokeLineJoin="Round"
-            Data="M3,10 L3,20 L21,20 L21,10 M3,10 C3,2 21,2 21,10 Z M8,5 L8,20 M16,5 L16,20 M10,12 L14,12 L14,16 L10,16 Z"/></Canvas></Viewbox>
-        </Border>
+        <Image Source="{x:Static local:Brand.Logo}" Width="44" Height="44" Margin="0,0,14,0"/>
         <StackPanel><TextBlock Text="CHEST TRACKER" FontSize="23" FontWeight="Bold"/></StackPanel>
       </StackPanel>
       <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
-        <TextBlock Text="4.1" HorizontalAlignment="Right" FontSize="13" Foreground="#FF6675"/>
+        <TextBlock Text="5.0" HorizontalAlignment="Right" FontSize="13" Foreground="#FF6675"/>
       </StackPanel>
     </Grid>
     <Grid Grid.Row="1" Margin="0,0,0,22">
       <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
       <StackPanel Orientation="Horizontal">
         <Button x:Name="CounterNav" Content="Счётчик" Style="{StaticResource Nav}" Click="ShowCounter"/>
-        <Button x:Name="HistoryNav" Content="История матчей" Style="{StaticResource Nav}" Click="ShowHistory"/>
-        <Button x:Name="RewardsNav" Content="Награды" Style="{StaticResource Nav}" Click="ShowRewards"/>
         <Button x:Name="MapNav" Content="Карта сундуков" Style="{StaticResource Nav}" Click="ShowMap"/>
+        <Button x:Name="RewardsNav" Content="Награды" Style="{StaticResource Nav}" Click="ShowRewards"/>
+        <Button x:Name="HistoryNav" Content="История матчей" Style="{StaticResource Nav}" Click="ShowHistory"/>
         <Button x:Name="HealthNav" Content="Настройки" Style="{StaticResource Nav}" Click="ShowHealth"/>
       </StackPanel>
       <TextBlock x:Name="PlayerLabel" Grid.Column="1" Text="Игрок определится автоматически" Foreground="{StaticResource Muted}" VerticalAlignment="Center" FontSize="12" MaxWidth="170" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
@@ -163,6 +160,7 @@
             <StackPanel><TextBlock x:Name="WeekHeading" FontSize="22" FontWeight="SemiBold"/><TextBlock x:Name="WeekDates" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,7,0,0"/></StackPanel>
             <TextBlock x:Name="WeekStatus" Grid.Column="1" Foreground="#FF7280" VerticalAlignment="Center" FontSize="12"/>
           </Grid>
+          <TextBlock x:Name="RewardOddsNote" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,14"/>
           <WrapPanel x:Name="RewardCards"/>
           <Border x:Name="UnknownRewardsPanel" Style="{StaticResource Panel}" Visibility="Collapsed" MinHeight="200" Margin="0,0,0,16">
             <StackPanel VerticalAlignment="Center"><TextBlock Text="Сокровища пока не раскрыты" FontSize="24" FontWeight="SemiBold"/>
@@ -188,7 +186,7 @@
           <TextBlock Text="Настройки" FontSize="31" FontWeight="SemiBold" Margin="0,0,0,24"/>
           <Border Style="{StaticResource Panel}" Margin="0,0,0,16">
             <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-              <StackPanel Margin="0,0,24,0"><TextBlock Text="Напоминание о духе" FontSize="18" FontWeight="SemiBold"/><TextBlock Text="После матча напомнить поставить духа перед следующей игрой." Foreground="{StaticResource Muted}" FontSize="13" Margin="0,8,0,0"/></StackPanel>
+              <StackPanel Margin="0,0,24,0"><TextBlock Text="Напоминание о духе" FontSize="18" FontWeight="SemiBold"/><TextBlock Text="Через 20 секунд после завершения записи матча напомнить поставить духа." Foreground="{StaticResource Muted}" FontSize="13" Margin="0,8,0,0"/></StackPanel>
               <CheckBox x:Name="ReminderToggle" Grid.Column="1" Style="{StaticResource Switch}" VerticalAlignment="Center" Checked="ReminderSettingChanged" Unchecked="ReminderSettingChanged"/>
             </Grid>
           </Border>

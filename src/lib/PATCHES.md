@@ -15,3 +15,6 @@ Changes for ChestCounter:
 9. `Unreal.Core/BitReader.cs`: `SetTempEnd` always saves the current end, even on overflow. Otherwise the next `RestoreTempEnd` restored a stale end, reading went backwards and the parser looped until the 3-minute timeout ("analysis took too long").
 10. `Unreal.Core/ReplayReader.cs` + `BinaryReader.cs`: reading a replay **still being written**. `ReadReplayChunks` stops at the last complete chunk (`IsPartialReplay`, `BinaryReader.Length`), and an encrypted replay flagged "live" is accepted when its key is present.
 11. `Unreal.Core/ReplayReader.cs`: in a "live" replay, an event or data chunk that cannot be decrypted is skipped, or stops the reading, instead of failing the analysis. Note: during the match, Fortnite leaves the encryption key at zero in the header and only writes the real key at the end. The data of a match in progress therefore cannot be read (`ReplayHeaderProbe.KeyMissing`).
+
+## Chest Tracker 5.0
+BaseContainer exposes nullable bAlreadySearched/bDestroyed and StaticMesh/SearchedMesh object references. The tracker merges replay deltas by physical actor, clears cancelled searchers, and classifies the seasonal chest from its replicated mesh rather than an ambiguous spawner name.

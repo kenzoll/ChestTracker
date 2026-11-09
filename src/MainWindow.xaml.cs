@@ -38,6 +38,7 @@ public partial class MainWindow : Window
         this.store = store;
         this.demo = demo;
         InitializeComponent();
+        Icon=Brand.Logo;
         InitializeSeasonPages();
         watcher = new(store);
         reminder = new(store);
@@ -121,7 +122,7 @@ public partial class MainWindow : Window
         StatusText.Text = watcher.Status;
         StatusDetail.Text = watcher.Detail;
         ObserveButton.Content = watcher.Running ? "Ⅱ  Пауза" : "▶  Продолжить";
-        AnalysisProgress.Visibility = watcher.Phase == "analyzing" ? Visibility.Visible : Visibility.Collapsed;
+        AnalysisProgress.Visibility = watcher.Phase is "analyzing" or "recounting" ? Visibility.Visible : Visibility.Collapsed;
 
         PulseDot.Fill = watcher.Running ? Brushes.White : new SolidColorBrush(Color.FromRgb(105,105,115));
 
@@ -148,6 +149,10 @@ public partial class MainWindow : Window
         HistoryGrid.ItemsSource = matches;
         EmptyRecent.Visibility = matches.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         HistoryCaption.Text = $"Матчей: {matches.Count}   ·   По истории: {matches.Sum(m => (long)m.Total):N0} сундуков";
+        int recounted=matches.Count(m=>m.RecountStatus=="Пересчитано в 5.0");
+        int notRecounted=matches.Count(m=>m.CounterVersion<CounterSchema.Version&&!string.IsNullOrEmpty(m.RecountStatus));
+        if(recounted>0)HistoryCaption.Text+=$"   ·   Пересчитано: {recounted}";
+        if(notRecounted>0)HistoryCaption.Text+=$"   ·   Не пересчитано: {notRecounted}";
         PlayerLabel.Text = last?.Player ?? "";
 
         refreshing = true;
@@ -202,7 +207,7 @@ public partial class MainWindow : Window
     }
     private long[]? NumberDialog(string title, string hint, (string Label, long Value)[] fields)
     {
-        var window = new Window { Title = title, Width = 450, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize, Owner = this,
+        var window = new Window { Icon=Brand.Logo, Title = title, Width = 450, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize, Owner = this,
             WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = new SolidColorBrush(Color.FromRgb(16,16,16)), Foreground = Brushes.White, FontFamily = FontFamily, FontSize = 14 };
         var panel = new StackPanel { Margin = new Thickness(25) };
         window.Content = panel;
@@ -236,7 +241,7 @@ public partial class MainWindow : Window
     private void ShowDetails(MatchEntry m) => new MatchDetailsWindow(m,this,store.State.Animations).ShowDialog();
     private void ShowText(string title, string text)
     {
-        new Window { Title = title, Width = 710, Height = 550, Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner,
+        new Window { Icon=Brand.Logo, Title = title, Width = 710, Height = 550, Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Content = new TextBox { Text = text, IsReadOnly = true, Background = new SolidColorBrush(Color.FromRgb(15,15,15)), Foreground = Brushes.White,
                 FontFamily = new FontFamily("Consolas"), FontSize = 13, Padding = new Thickness(22), TextWrapping = TextWrapping.Wrap, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } }.ShowDialog();
     }

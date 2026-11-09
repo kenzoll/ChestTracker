@@ -7,7 +7,7 @@ using System.Text.RegularExpressions;
 namespace ChestTracker;
 
 internal sealed record UpdateRelease(Version Version,Uri Download,long Size,string Sha256);
-internal sealed record UpdatePlan(string Target,string Candidate,string Sha256,int ParentId,long ParentStartedUtc);
+internal sealed record UpdatePlan(string Target,string Candidate,string Sha256,int ParentId,long ParentStartedUtc,bool Restart=false,string[]? RestartArguments=null);
 
 internal sealed class AppUpdates : IDisposable
 {
@@ -92,7 +92,7 @@ internal sealed class AppUpdates : IDisposable
             }
             await Task.Run(()=>VerifyFile(partial,release.Sha256),cancellation.Token);
             candidate=Path.Combine(folder,"ChestTracker-new.exe");File.Move(partial,candidate,true);partial=null;ready=release;
-            SetStatus("Версия "+release.Version.ToString(3)+" готова · установится при закрытии приложения");
+            SetStatus("Версия "+release.Version.ToString(3)+" готова · можно обновить приложение");
         }
         catch(OperationCanceledException){if(!cancellation.IsCancellationRequested)SetStatus("Сервер не ответил. Попробуем позже.");}
         catch(Exception){SetStatus("Не удалось загрузить обновление. Текущая версия продолжает работать.");}
@@ -104,13 +104,13 @@ internal sealed class AppUpdates : IDisposable
         if(!actual.Equals(expected,StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("Контрольная сумма обновления не совпадает");
         input.Position=0;if(input.ReadByte()!='M'||input.ReadByte()!='Z')throw new InvalidDataException("Обновление не является приложением Windows");
     }
-    public void InstallOnExit()
+    public void InstallOnExit(bool restart=false)
     {
         if(!IsReady)return;
         string current=Environment.ProcessPath??throw new InvalidOperationException("Не найден EXE приложения");
         string helper=Path.Combine(folder,"apply-update.exe");File.Copy(current,helper,true);
         using var process=Process.GetCurrentProcess();
-        var plan=new UpdatePlan(Path.GetFullPath(current),candidate!,ready!.Sha256,process.Id,process.StartTime.ToUniversalTime().Ticks);
+        var plan=new UpdatePlan(Path.GetFullPath(current),candidate!,ready!.Sha256,process.Id,process.StartTime.ToUniversalTime().Ticks,restart);
         string planFile=Path.Combine(folder,"install.json");File.WriteAllText(planFile,JsonSerializer.Serialize(plan));
         var start=new ProcessStartInfo(helper){UseShellExecute=false,CreateNoWindow=true,WindowStyle=ProcessWindowStyle.Hidden};
         start.ArgumentList.Add("--apply-update");start.ArgumentList.Add(planFile);
@@ -131,7 +131,15 @@ internal sealed class AppUpdates : IDisposable
             }
             catch(ArgumentException){} // The parent has already exited.
             ReplaceVerified(plan.Target,plan.Candidate,plan.Sha256,directory);
-            File.Delete(planFile);File.WriteAllText(Path.Combine(directory,"result.txt"),"Обновление установлено");return 0;
+            File.Delete(planFile);File.WriteAllText(Path.Combine(directory,"result.txt"),"Обновление установлено");
+            if(plan.Restart)
+            {
+                var start=new ProcessStartInfo(plan.Target){UseShellExecute=false,CreateNoWindow=true,WorkingDirectory=Path.GetDirectoryName(plan.Target)!};
+                foreach(string argument in plan.RestartArguments??[])start.ArgumentList.Add(argument);
+                try{_ = Process.Start(start)??throw new IOException("Не удалось запустить приложение");}
+                catch(Exception e){File.WriteAllText(Path.Combine(directory,"result.txt"),"Обновление установлено. Перезапустите приложение вручную: "+e.Message);}
+            }
+            return 0;
         }
         catch(Exception e){try{File.WriteAllText(Path.Combine(directory,"result.txt"),"Обновление не установлено: "+e.Message);}catch{}return 1;}
     }

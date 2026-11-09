@@ -23,6 +23,8 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer reminderTimer = new() { Interval=TimeSpan.FromSeconds(1) };
     private AppUpdates? updates;
     private bool closing;
+    private bool restartForUpdate;
+    private bool updateNoticeDismissed;
     private DateTime nextUpdateCheck=DateTime.MinValue;
     private readonly DispatcherTimer updateTimer=new(){Interval=TimeSpan.FromMinutes(1)};
     private bool refreshing;
@@ -51,7 +53,7 @@ public partial class MainWindow : Window
         UpdatePanel.Visibility=AppUpdates.Configured?Visibility.Visible:Visibility.Collapsed;
         if(!demo&&AppUpdates.Configured)
         {
-            updates=new AppUpdates(store.Folder);updates.Changed+=()=>UpdateStatus.Text=updates.Status;
+            updates=new AppUpdates(store.Folder);updates.Changed+=RefreshUpdateNotice;
             updateTimer.Tick+=async (_,_)=>await CheckUpdatesWhenIdle();
         }
     }
@@ -75,7 +77,7 @@ public partial class MainWindow : Window
         Microsoft.Win32.SystemEvents.TimeChanged -= WindowsTimeChanged;
         Microsoft.Win32.SystemEvents.UserPreferenceChanged -= WindowsPreferenceChanged;
         try { store.Save(); } catch (Exception ex) { MessageBox.Show(this, "Не удалось сохранить историю:\n" + ex.Message); }
-        try{updates?.InstallOnExit();}catch(Exception ex){store.Log("Не удалось начать установку обновления: "+ex.Message);}
+        try{updates?.InstallOnExit(restartForUpdate);}catch(Exception ex){store.Log("Не удалось начать установку обновления: "+ex.Message);}
         updates?.Dispose();
     }
     private async Task BeginUpdates()
@@ -91,7 +93,22 @@ public partial class MainWindow : Window
     }
     private async void CheckUpdates(object sender,RoutedEventArgs e)
     {
+        if(updates?.IsReady==true){InstallUpdateNow(sender,e);return;}
         if(updates!=null)await updates.CheckAsync();
+    }
+    private void RefreshUpdateNotice()
+    {
+        if(updates==null)return;
+        UpdateStatus.Text=updates.Status;
+        UpdateCheckButton.Content=updates.IsReady?"Обновить":"Проверить";
+        UpdateNotice.Visibility=updates.IsReady&&!updateNoticeDismissed&&!watcher.Busy&&watcher.Phase!="live"?Visibility.Visible:Visibility.Collapsed;
+    }
+    private void DismissUpdate(object sender,RoutedEventArgs e){updateNoticeDismissed=true;UpdateNotice.Visibility=Visibility.Collapsed;}
+    private void InstallUpdateNow(object sender,RoutedEventArgs e)
+    {
+        if(updates?.IsReady!=true)return;
+        if(watcher.Busy||watcher.Phase=="live"){UpdateStatus.Text="Обновление готово. Установим после закрытия приложения или окончания матча.";return;}
+        restartForUpdate=true;Close();
     }
     private async Task CheckReminder()
     {
@@ -108,6 +125,7 @@ public partial class MainWindow : Window
 
         PulseDot.Fill = watcher.Running ? Brushes.White : new SolidColorBrush(Color.FromRgb(105,105,115));
 
+        RefreshUpdateNotice();
         HealthSummary.Text = watcher.FileCount > 0 ? $"Доступно повторов: {watcher.FileCount}. Новые матчи учитываются автоматически." : "Пока нет повторов. Включите запись и завершите матч.";
         refreshing = true;
         AnimationToggle.IsChecked = store.State.Animations;

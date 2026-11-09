@@ -10,9 +10,10 @@ public partial class MainWindow
 {
     internal void RenderPages(string directory)
     {
-        foreach(var (page,button,name) in new[] { (CounterPage,CounterNav,"counter"),(HistoryPage,HistoryNav,"history"),(RewardsPage,RewardsNav,"rewards"),(MapPage,MapNav,"map"),(HealthPage,HealthNav,"settings") })
+        foreach(var (page,button,name) in new[] { (CounterPage,CounterNav,"counter"),(HistoryPage,HistoryNav,"history"),(RewardsPage,RewardsNav,"rewards"),(MapPage,MapNav,"map"),(HealthPage,HealthNav,"settings"),(CounterPage,CounterNav,"update-notice") })
         {
             ShowPage(page,button);
+            UpdateNotice.Visibility=name=="update-notice"?Visibility.Visible:Visibility.Collapsed;
             if(page==MapPage)MapViewer.EnsureLoaded();
             UpdateLayout();
             Dispatcher.Invoke(()=>{},DispatcherPriority.ApplicationIdle);

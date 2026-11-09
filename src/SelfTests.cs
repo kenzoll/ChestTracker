@@ -260,6 +260,14 @@ public static class SelfTests
             bool rejected=false;try{AppUpdates.ReplaceVerified(target,source,new string('0',64),Path.Combine(folder,"cache"));}catch(InvalidDataException){rejected=true;}
             Require(rejected&&System.IO.File.ReadAllText(target)=="MZ original");
         });
+        Test("In-app update notice can be dismissed without closing the app", () =>
+        {
+            var store=new TrackerStore(Path.Combine(root,"update-notice-ui"));store.State.Animations=false;
+            var owner=new MainWindow(store,true){Opacity=0,ShowActivated=false};owner.Show();
+            var notice=(System.Windows.Controls.Border)owner.FindName("UpdateNotice");notice.Visibility=Visibility.Visible;
+            var dismiss=(System.Windows.Controls.Button)owner.FindName("DismissUpdateButton");dismiss.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+            Require(notice.Visibility==Visibility.Collapsed&&owner.IsVisible);owner.Close();
+        });
         Test("Single executable contains required resources and notices", () =>
         {
             foreach(string name in new[]{"map.png","chests.json","Notices.txt","app.ico"}) { using var stream=StoragePaths.Asset(name);Require(stream.Length>0); }

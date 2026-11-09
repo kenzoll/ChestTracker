@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="260" viewBox="0 0 1200 260" role="img" aria-labelledby="title desc">
+<title id="title">Chest Tracker</title><desc id="desc">Счётчик сундуков Fortnite. Версия 4.1.</desc>
+<defs><linearGradient id="bg" x2="1" y2=".5"><stop stop-color="#171013"/><stop offset="1" stop-color="#09090c"/></linearGradient><linearGradient id="red" x2="1" y2="1"><stop stop-color="#ff536b"/><stop offset="1" stop-color="#af1e35"/></linearGradient></defs>
+<rect width="1200" height="260" rx="22" fill="url(#bg)"/>
+<path d="M960 0 740 260M1080 0 860 260M1200 0 980 260" fill="none" stroke="#e53850" stroke-opacity=".08" stroke-width="48"/>
+<rect x="48" y="59" width="142" height="142" rx="33" fill="#291319" stroke="#773140"/>
+<g transform="translate(72 85)" fill="none" stroke="url(#red)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 37C6-4 88-4 88 37v51H6Z"/><path d="M6 38h82M29 10v78M65 10v78"/><rect x="39" y="40" width="17" height="22" rx="3" fill="#201115" stroke="#fff"/><path d="M47.5 48v7" stroke="#fff" stroke-width="3"/></g>
+<g font-family="Segoe UI,Arial,sans-serif"><text x="225" y="126" fill="#fff" font-size="54" font-weight="750" letter-spacing="1">CHEST TRACKER</text><text x="228" y="170" fill="#b7b3bd" font-size="23">Счётчик сундуков Fortnite</text><text x="1100" y="65" fill="#ff6077" font-size="20" font-weight="600">4.1</text></g>
+<rect x="228" y="193" width="54" height="4" rx="2" fill="#e53850"/>
+</svg>

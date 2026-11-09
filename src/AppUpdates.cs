@@ -29,7 +29,7 @@ internal sealed class AppUpdates : IDisposable
         folder=Path.Combine(dataDirectory,"updates");
         client=new HttpClient{Timeout=TimeSpan.FromMinutes(15)};
         client.DefaultRequestHeaders.UserAgent.ParseAdd("ChestTracker/"+Current);
-        client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+        client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
     }
     private static string ReadRepository()
     {
@@ -66,7 +66,7 @@ internal sealed class AppUpdates : IDisposable
         {
             SetStatus("Проверяю новую версию…");
             using var timeout=CancellationTokenSource.CreateLinkedTokenSource(cancellation.Token);timeout.CancelAfter(TimeSpan.FromSeconds(25));
-            using var response=await client.GetAsync("https://api.github.com/repos/"+Repository+"/releases/latest",HttpCompletionOption.ResponseHeadersRead,timeout.Token);
+            using var response=await client.GetAsync("https://github.com/"+Repository+"/releases/latest/download/update.json",HttpCompletionOption.ResponseHeadersRead,timeout.Token);
             response.EnsureSuccessStatusCode();
             if(response.Content.Headers.ContentLength>1048576)throw new InvalidDataException("Слишком большой ответ сервера обновлений");
             var json=await response.Content.ReadAsStringAsync(timeout.Token);

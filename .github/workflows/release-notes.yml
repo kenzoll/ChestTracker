@@ -20,7 +20,9 @@ jobs:
           for file in release-notes/v*.md; do
             tag="$(basename "$file" .md)"
             if gh release view "$tag" --json tagName >/dev/null 2>&1; then
-              gh release edit "$tag" --notes-file "$file"
+              version="${tag#v}"
+              IFS=. read -r major minor patch <<< "$version"
+              gh release edit "$tag" --title "Chest Tracker ${major}.${minor}" --notes-file "$file"
               printf 'Updated description: %s\n' "$tag"
             fi
           done

@@ -43,14 +43,11 @@ jobs:
           $tag = 'v' + $version
           $release = gh release view $tag --json tagName 2>$null
           if ($LASTEXITCODE -eq 0) { Write-Host 'Release already exists'; exit 0 }
-          @'
-          Обновление Chest Tracker 4.1. Один EXE, без установки.
-          Автоматическая загрузка обновлений с проверкой контрольной суммы; установка при закрытии приложения.
-          История матчей и настройки сохраняются.
-          '@ | Set-Content release-notes.md -Encoding utf8
+          $notesPath = Join-Path 'release-notes' ($tag + '.md')
+          if (!(Test-Path -LiteralPath $notesPath) -or [string]::IsNullOrWhiteSpace([IO.File]::ReadAllText((Join-Path $PWD $notesPath)))) { throw 'Write release notes for this version before publishing' }
           $binary = Get-Item publish/ChestTracker.exe
           $checksum = (Get-FileHash $binary.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
           $downloadUrl = 'https://github.com/' + $env:GITHUB_REPOSITORY + '/releases/download/' + $tag + '/ChestTracker.exe'
           @{ draft=$false; prerelease=$false; tag_name=$tag; assets=@(@{name='ChestTracker.exe';size=$binary.Length;digest=('sha256:'+$checksum);browser_download_url=$downloadUrl}) } | ConvertTo-Json -Depth 5 | Set-Content publish/update.json -Encoding utf8
-          gh release create $tag publish/ChestTracker.exe publish/update.json --target $env:GITHUB_SHA --title 'Chest Tracker 4.1' --notes-file release-notes.md --latest
+          gh release create $tag publish/ChestTracker.exe publish/update.json --target $env:GITHUB_SHA --title 'Chest Tracker 4.1' --notes-file $notesPath --latest
           if ($LASTEXITCODE -ne 0) { throw 'Release publication failed' }

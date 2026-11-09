@@ -1,0 +1,26 @@
+name: Refresh release descriptions
+on:
+  push:
+    branches: [main]
+    paths: ['release-notes/**', '.github/workflows/release-notes.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  descriptions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Update descriptions of existing releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in release-notes/v*.md; do
+            tag="$(basename "$file" .md)"
+            if gh release view "$tag" --json tagName >/dev/null 2>&1; then
+              gh release edit "$tag" --notes-file "$file"
+              printf 'Updated description: %s\n' "$tag"
+            fi
+          done

@@ -66,6 +66,7 @@ public sealed class TrackerState
     public List<MatchEntry> Matches { get; set; } = [];
     public HashSet<string> InitialBalancesSet { get; set; } = [];
     public List<ManualChestAddition> ManualAdditions { get; set; } = [];
+    public List<SavedRoute> SavedRoutes { get; set; } = [];
     public Dictionary<string, FileResult> Files { get; set; } = [];
     public List<string> Log { get; set; } = [];
     public HashSet<string> LegacyImports { get; set; } = [];
@@ -161,6 +162,33 @@ public sealed class TrackerStore
             throw;
         }
     }
+    public void StoreRoute(SavedRoute route)
+    {
+        if (string.IsNullOrWhiteSpace(route.Name) || route.Name.Length > 80)
+            throw new ArgumentException("Введите название от 1 до 80 символов.");
+        int index = State.SavedRoutes.FindIndex(saved => saved.Id == route.Id);
+        if (index < 0)
+        {
+            State.SavedRoutes.Add(route);
+            try { Save(); }
+            catch { State.SavedRoutes.RemoveAt(State.SavedRoutes.Count - 1); throw; }
+            return;
+        }
+        var previous = State.SavedRoutes[index];
+        State.SavedRoutes[index] = route;
+        try { Save(); }
+        catch { State.SavedRoutes[index] = previous; throw; }
+    }
+
+    public void RemoveRoute(SavedRoute route)
+    {
+        int index = State.SavedRoutes.IndexOf(route);
+        if (index < 0) return;
+        State.SavedRoutes.RemoveAt(index);
+        try { Save(); }
+        catch { State.SavedRoutes.Insert(index, route); throw; }
+    }
+
     public void Save()
     {
         var temp = PathName + ".tmp";

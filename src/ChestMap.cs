@@ -103,7 +103,7 @@ public sealed partial class ChestMap : FrameworkElement
         foreach(var place in places)
         {
             var at=ToScreen(place.Position);if(at.X<0||at.X>ActualWidth||at.Y<0||at.Y>ActualHeight)continue;
-            var label=new FormattedText(place.Name,System.Globalization.CultureInfo.InvariantCulture,FlowDirection.LeftToRight,
+            var label=new FormattedText(ChestRoutes.Label(place.Name),System.Globalization.CultureInfo.InvariantCulture,FlowDirection.LeftToRight,
                 new Typeface("Segoe UI Semibold"),zoom>2?11:9,Brushes.White,VisualTreeHelper.GetDpi(this).PixelsPerDip);
             var pos=new Point(at.X-label.Width/2,at.Y-19);
             drawing.DrawRoundedRectangle(new SolidColorBrush(Color.FromArgb(165,10,13,19)),null,new Rect(pos.X-4,pos.Y-2,label.Width+8,label.Height+4),3,3);drawing.DrawText(label,pos);
@@ -180,7 +180,11 @@ public sealed partial class ChestMap : FrameworkElement
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonUp(e); var p=e.GetPosition(this); ReleaseMouseCapture();
-        if(!dragging)
+        if (!dragging && routePlan != null)
+        {
+            ClickRouteStop(p);
+        }
+        else if(!dragging)
         {
             var h=hits.LastOrDefault(h=>(h.Screen-p).Length<18);
             if(h!=null && h.Pins.Count>1) ZoomAt(h.Screen,1.9);

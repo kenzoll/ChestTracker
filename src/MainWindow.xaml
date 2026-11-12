@@ -121,15 +121,15 @@
         <StackPanel><TextBlock Text="CHEST TRACKER" FontSize="23" FontWeight="Bold"/></StackPanel>
       </StackPanel>
       <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
-        <TextBlock Text="6.0" HorizontalAlignment="Right" FontSize="13" Foreground="#FF6675"/>
+        <TextBlock Text="6.1" HorizontalAlignment="Right" FontSize="13" Foreground="#FF6675"/>
       </StackPanel>
     </Grid>
     <Grid Grid.Row="1" Margin="0,0,0,22">
       <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
       <StackPanel Orientation="Horizontal">
         <Button x:Name="CounterNav" Content="Счетчик" Style="{StaticResource Nav}" Click="ShowCounter"/>
-        <Button x:Name="MapNav" Content="Карта сундуков" Style="{StaticResource Nav}" Click="ShowMap"/>
         <Button x:Name="RoutesNav" Content="Маршруты" Style="{StaticResource Nav}" Click="ShowRoutes"/>
+        <Button x:Name="MapNav" Content="Карта сундуков" Style="{StaticResource Nav}" Click="ShowMap"/>
         <Button x:Name="RewardsNav" Content="Награды" Style="{StaticResource Nav}" Click="ShowRewards"/>
         <Button x:Name="HistoryNav" Content="История матчей" Style="{StaticResource Nav}" Click="ShowHistory"/>
         <Button x:Name="HealthNav" Content="Настройки" Style="{StaticResource Nav}" Click="ShowHealth"/>
@@ -250,37 +250,42 @@
             <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
             <StackPanel>
               <TextBlock Text="Маршруты" FontSize="31" FontWeight="SemiBold"/>
-              <TextBlock Text="Crossbones Isle · готовые пробеги и генератор по точкам сундуков" Foreground="{StaticResource Muted}" Margin="0,7,0,0"/>
+              <TextBlock Text="Остров черепа и костей · маршруты для сбора сундуков" Foreground="{StaticResource Muted}" Margin="0,7,0,0"/>
             </StackPanel>
             <Button Grid.Column="1" Content="Fortnite.gg ↗" Click="OpenMapSource" VerticalAlignment="Center"/>
           </Grid>
           <Grid>
             <Grid.ColumnDefinitions><ColumnDefinition Width="308"/><ColumnDefinition Width="14"/><ColumnDefinition/></Grid.ColumnDefinitions>
             <StackPanel>
-              <Border Style="{StaticResource Panel}" Padding="14" Margin="0,0,0,12">
+              <Border Style="{StaticResource Panel}" Padding="16" Margin="0,0,0,12">
                 <StackPanel>
-                  <TextBlock Text="Готовые маршруты" FontSize="16" FontWeight="SemiBold" Margin="5,0,0,8"/>
-                  <ListBox x:Name="RouteGuideList" Background="#111111" Foreground="White" BorderThickness="0"
-                           DisplayMemberPath="Name" ItemContainerStyle="{StaticResource DarkListItem}" SelectionChanged="SelectRouteGuide"
-                           ScrollViewer.HorizontalScrollBarVisibility="Disabled"/>
-                </StackPanel>
-              </Border>
-              <Border Style="{StaticResource Panel}" Padding="16">
-                <StackPanel>
-                  <TextBlock Text="Генератор маршрутов" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,12"/>
-                  <TextBlock Text="Место высадки" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,5"/>
-                  <ComboBox x:Name="RouteStartChoice" Style="{StaticResource RouteCombo}" Margin="0,0,0,12" AutomationProperties.Name="Место высадки">
+                  <TextBlock Text="Построить свой маршрут" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,12"/>
+                  <TextBlock Text="Откуда начать" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,5"/>
+                  <ComboBox x:Name="RouteStartChoice" Style="{StaticResource RouteCombo}" Margin="0,0,0,10" AutomationProperties.Name="Откуда начать">
                     <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/></DataTemplate></ComboBox.ItemTemplate>
                   </ComboBox>
-                  <TextBlock Text="Тип и количество точек" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,5"/>
-                  <Grid Margin="0,0,0,13">
-                    <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="8"/><ColumnDefinition Width="65"/></Grid.ColumnDefinitions>
-                    <ComboBox x:Name="RouteLayerChoice" Style="{StaticResource RouteCombo}" AutomationProperties.Name="Тип сундука">
-                      <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Label}" TextWrapping="NoWrap"/></DataTemplate></ComboBox.ItemTemplate>
-                    </ComboBox>
-                    <ComboBox x:Name="RouteLengthChoice" Style="{StaticResource RouteCombo}" Grid.Column="2" AutomationProperties.Name="Количество точек"/>
-                  </Grid>
+                  <TextBlock Text="Цель по сундукам" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,5"/>
+                  <ComboBox x:Name="RouteLengthChoice" Style="{StaticResource RouteCombo}" Margin="0,0,0,10" AutomationProperties.Name="Цель по сундукам">
+                    <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Label}" TextWrapping="NoWrap"/></DataTemplate></ComboBox.ItemTemplate>
+                  </ComboBox>
+                  <CheckBox x:Name="AvoidRouteWater" Content="Меньше переправ" IsChecked="True" Foreground="White" Margin="0,0,0,12"/>
                   <Button Content="Построить маршрут" Style="{StaticResource Primary}" Click="GenerateRoute"/>
+                </StackPanel>
+              </Border>
+              <Border Style="{StaticResource Panel}" Padding="12">
+                <StackPanel>
+                  <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="6"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                    <Button x:Name="ReadyRoutesButton" Content="Готовые" Padding="8,7" Click="ShowReadyRoutes"/>
+                    <Button x:Name="SavedRoutesButton" Grid.Column="2" Content="Мои маршруты" Padding="8,7" Click="ShowSavedRoutes"/>
+                  </Grid>
+                  <ListBox x:Name="RouteGuideList" Background="#111111" Foreground="White" BorderThickness="0" MaxHeight="280"
+                           DisplayMemberPath="Name" ItemContainerStyle="{StaticResource DarkListItem}" SelectionChanged="SelectRouteGuide"
+                           ScrollViewer.HorizontalScrollBarVisibility="Disabled"/>
+                  <ListBox x:Name="SavedRouteList" Visibility="Collapsed" Background="#111111" Foreground="White" BorderThickness="0" MaxHeight="280"
+                           DisplayMemberPath="Name" ItemContainerStyle="{StaticResource DarkListItem}" SelectionChanged="SelectSavedRoute"
+                           ScrollViewer.HorizontalScrollBarVisibility="Disabled"/>
+                  <TextBlock x:Name="NoSavedRoutes" Visibility="Collapsed" Text="Сохранённые маршруты появятся здесь." Foreground="{StaticResource Muted}" Margin="5,8"/>
                 </StackPanel>
               </Border>
             </StackPanel>
@@ -294,6 +299,12 @@
                   </Grid>
                   <TextBlock x:Name="RouteOverview" Foreground="{StaticResource Muted}" Margin="0,7,0,9"/>
                   <WrapPanel x:Name="RouteLegend"/>
+                  <TextBlock Text="Подсчёт по карте. Часть сундуков может не появиться в матче." FontSize="11" Foreground="{StaticResource Muted}" Margin="0,6,0,0"/>
+                  <WrapPanel x:Name="RouteActions" Margin="0,10,0,0" Visibility="Collapsed">
+                    <Button x:Name="SaveRouteButton" Content="Сохранить маршрут" Padding="10,6" Margin="0,0,8,0" Click="SaveCurrentRoute"/>
+                    <Button x:Name="RenameRouteButton" Content="Переименовать" Padding="10,6" Margin="0,0,8,0" Click="RenameSavedRoute"/>
+                    <Button x:Name="DeleteRouteButton" Content="Удалить" Padding="10,6" Click="DeleteSavedRoute"/>
+                  </WrapPanel>
                 </StackPanel>
               </Border>
               <Border BorderBrush="#403034" BorderThickness="1" CornerRadius="13" ClipToBounds="True">
@@ -302,13 +313,12 @@
                   <Button Content="Весь маршрут" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="12" Padding="11,7" Click="FitRouteMap"/>
                 </Grid>
               </Border>
-              <TextBlock Text="Стрелки показывают порядок обхода. Выберите остановку, чтобы приблизить её на карте." FontSize="12" Foreground="{StaticResource Muted}" Margin="2,9,0,12"/>
+              <TextBlock Text="Красные стрелки ведут между районами. Нажмите на номер, чтобы увидеть обход сундуков внутри района." FontSize="12" Foreground="{StaticResource Muted}" Margin="2,9,0,12"/>
               <Border Style="{StaticResource Panel}" Padding="14">
                 <StackPanel>
                   <Grid Margin="0,0,0,8">
                     <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                     <TextBlock Text="Порядок обхода" FontWeight="SemiBold" FontSize="16" VerticalAlignment="Center"/>
-                    <Button x:Name="RouteSourceButton" Grid.Column="1" Content="Гайд ↗" Padding="9,5" Click="OpenRouteSource"/>
                   </Grid>
                   <ListBox x:Name="RouteStopList" MaxHeight="226" Background="#111111" BorderThickness="0" Foreground="White"
                            ScrollViewer.HorizontalScrollBarVisibility="Disabled" ItemContainerStyle="{StaticResource DarkListItem}" SelectionChanged="SelectRouteStop">
@@ -330,7 +340,7 @@
           <TextBlock Text="Настройки" FontSize="31" FontWeight="SemiBold" Margin="0,0,0,24"/>
           <Border Style="{StaticResource Panel}" Margin="0,0,0,16">
             <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-              <StackPanel Margin="0,0,24,0"><TextBlock Text="Напоминание о духе" FontSize="18" FontWeight="SemiBold"/><TextBlock Text="Через 15 секунд после записи матча. Окно закроется само через 6 секунд." Foreground="{StaticResource Muted}" FontSize="13" Margin="0,8,0,0"/></StackPanel>
+              <StackPanel Margin="0,0,24,0"><TextBlock Text="Напоминание о духе" FontSize="18" FontWeight="SemiBold"/><TextBlock Text="Через 15 секунд после записи матча." Foreground="{StaticResource Muted}" FontSize="13" Margin="0,8,0,0"/></StackPanel>
               <CheckBox x:Name="ReminderToggle" Grid.Column="1" Style="{StaticResource Switch}" VerticalAlignment="Center" Checked="ReminderSettingChanged" Unchecked="ReminderSettingChanged"/>
             </Grid>
           </Border>

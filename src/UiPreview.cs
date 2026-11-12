@@ -10,7 +10,7 @@ public partial class MainWindow
 {
     internal void RenderPages(string directory)
     {
-        foreach(var (page,button,name) in new[] { (CounterPage,CounterNav,"counter"),(HistoryPage,HistoryNav,"history"),(RewardsPage,RewardsNav,"rewards"),(MapPage,MapNav,"map"),(RoutesPage,RoutesNav,"routes"),(RoutesPage,RoutesNav,"generated-route"),(HealthPage,HealthNav,"settings"),(CounterPage,CounterNav,"update-notice") })
+        foreach(var (page,button,name) in new[] { (CounterPage,CounterNav,"counter"),(HistoryPage,HistoryNav,"history"),(RewardsPage,RewardsNav,"rewards"),(MapPage,MapNav,"map"),(RoutesPage,RoutesNav,"routes"),(RoutesPage,RoutesNav,"generated-route"),(RoutesPage,RoutesNav,"focused-route"),(RoutesPage,RoutesNav,"saved-route"),(HealthPage,HealthNav,"settings"),(CounterPage,CounterNav,"update-notice") })
         {
             ShowPage(page,button);
             UpdateNotice.Visibility=name=="update-notice"?Visibility.Visible:Visibility.Collapsed;
@@ -19,6 +19,9 @@ public partial class MainWindow
             {
                 LoadRoutes();
                 if(name=="generated-route") GenerateRoute(RouteMap, new RoutedEventArgs());
+                if(name=="focused-route") RouteStopList.SelectedIndex = 1;
+                if(name=="saved-route" && displayedRoute is RoutePlan plan)
+                    WriteSavedRoute(new("preview-route", "Фарм от пристани", plan.Areas.Select(area => area.ToString()).ToArray()));
             }
             UpdateLayout();
             Dispatcher.Invoke(()=>{},DispatcherPriority.ApplicationIdle);

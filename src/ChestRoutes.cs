@@ -2,135 +2,221 @@ using System.Windows;
 
 namespace ChestTracker;
 
-internal sealed record RouteStop(string Name, Point Location, string Instruction, double Radius = 0);
-internal sealed record ChestRoute(
-    string Name, string Summary, RouteStop[] Stops, string? Source = null, string? Layer = null, Point[][]? Via = null);
-internal sealed record RoutePlan(ChestRoute Route, IReadOnlyList<ChestPin>[] Pins)
+internal enum RouteArea
 {
-    public int Count => Pins.Sum(group => group.Count);
+    Resort, Chest, Lagoon, Fort, Lantern, Arlong, Mill, Logue, Cavern, Port, Bay, Rocky, Boat, Battlefield, Skull, Baratie, Henry, NorthIslet
 }
 
-internal static class ChestRoutes
+internal sealed record RouteDistrict(string Name, Point Center, double Radius, string Search);
+internal sealed record RouteCrossing(RouteArea From, RouteArea To, Point[] Via, string Note, bool Water = false)
 {
-    private const string ClickGuide = "https://www.theclick.gg/fortnite-pirate-shop-token-farming-routes/";
-    private const string TokenGuide = "https://www.fortnitetoken.org/pirate-shop-token/chest-routes/";
+    public RouteCrossing Reverse() => new(To, From, Via.Reverse().ToArray(), Note, Water);
+}
+internal sealed record RoutePreset(string Name, string Summary, RouteArea[] Areas);
+internal sealed record RouteStage(RouteDistrict District, string Instruction, ChestPin[] Pins);
+internal sealed record RoutePlan(string Name, string Summary, RouteArea[] Areas, RouteStage[] Stages, RouteCrossing[] Crossings)
+{
+    public int Count => Stages.Sum(stage => stage.Pins.Length);
+}
+public sealed record SavedRoute(string Id, string Name, string[] Areas);
 
-    public static readonly ChestRoute[] Guides =
+internal sealed class ChestRoutes
+{
+    private static readonly Dictionary<RouteArea, RouteDistrict> Districts = new()
+    {
+        [RouteArea.Resort] = new("Резиновый курорт", new(100.19, 88.97), 14, "Осмотрите корпуса курорта и западные постройки у склона."),
+        [RouteArea.Chest] = new("Гигантский сундук", new(93.02, 109.31), 8, "Начните с бугорков на песчаной косе. Обойдите мегасундук по берегу."),
+        [RouteArea.Lagoon] = new("Лагуна добычи", new(132.73, 108.57), 13, "Проверьте здания у берега, затем площадки вокруг лагуны."),
+        [RouteArea.Fort] = new("Форт Фортуны", new(161.68, 104.25), 13, "Загляните в постройки вдоль склона и у нижнего входа."),
+        [RouteArea.Lantern] = new("Фонарная пристань", new(110.66, 131.83), 13, "Проверьте крыши и этажи, затем загляните в постройки по краю района."),
+        [RouteArea.Arlong] = new("Арлонг-парк", new(76.57, 141.34), 13, "Начните с верхних этажей главного здания и спуститесь к дворам."),
+        [RouteArea.Mill] = new("Деревня Мельниц", new(92.03, 181.95), 13, "Обыщите дома вдоль берега и постройки вокруг мельниц."),
+        [RouteArea.Logue] = new("Логтаун", new(122.28, 174.79), 13, "Идите от крыш к улицам и проверяйте нижние этажи."),
+        [RouteArea.Cavern] = new("Проклятая пещера", new(147.53, 144.49), 11, "Начните с верхних уступов, спускайтесь к боковым проходам."),
+        [RouteArea.Port] = new("Пиратский порт", new(143.16, 203.73), 12, "Проверьте склады у причала и постройки вдоль берега."),
+        [RouteArea.Bay] = new("Оживлённая бухта", new(173.85, 187.63), 12, "Пройдите по берегу и проверьте ближайшие здания."),
+        [RouteArea.Rocky] = new("Линкор A$AP Rocky", new(177.44, 153.44), 13, "Осмотрите палубу и нижние уровни корабля."),
+        [RouteArea.Boat] = new("Танцевальный катер", new(181.34, 123.96), 14, "Осмотрите пляж и постройки у причала."),
+        [RouteArea.Battlefield] = new("Поле битвы великанов", new(117.62, 156.81), 12, "Проверьте руины и площадки вдоль тропы через поле."),
+        [RouteArea.Skull] = new("Солёный череп", new(150.36, 154.40), 11, "Ищите сундуки в укрытиях под уступами и у южного выхода из пещеры."),
+        [RouteArea.Baratie] = new("Барати", new(176.84, 187.03), 12, "Проверьте ярусы ресторана и пристань."),
+        [RouteArea.Henry] = new("Остров Генри", new(149.98, 190.07), 10, "Обойдите маленькие островки по берегу и загляните в укрытия."),
+        [RouteArea.NorthIslet] = new("Северо-восточный островок", new(197, 78), 7, "Обойдите пляж по кругу и раскопайте бугорки на песке.")
+    };
+
+    private static readonly RouteCrossing[] Crossings =
     [
-        new("Через центр острова", "Длинный маршрут через четыре локации. Последнюю остановку выбирайте по кругу.",
-        [
-            new("Lantern Landing", new(110.66, 131.83), "Начните с домов у высадки. Затем двигайтесь на запад к парку.", 8),
-            new("Arlong Park", new(76.57, 141.34), "Осмотрите главное здание сверху вниз и соседние дворы. Выходите на юго-восток.", 8),
-            new("Loguetown", new(122.28, 174.79), "Проверьте крыши и улицы. Переходите к пещере только при удобном круге.", 8),
-            new("Cursed Cavern", new(147.53, 144.49), "Подойдите с юга и осмотрите уступы и нижние уровни.", 8)
-        ], "https://fortniteshoptoken.me/guides/best-chest-locations/", Via:
-        [
-            [new(103, 135), new(97, 143), new(86, 142)],
-            [new(79, 152), new(89, 158), new(101, 163), new(112, 167)],
-            [new(132, 170), new(145, 160), new(151, 151)]
-        ]),
-        new("От парка к фонарям", "Две локации с плотной застройкой на западе острова.",
-        [
-            new("Arlong Park", new(76.57, 141.34), "Высадитесь на крыше, спуститесь по этажам и закончите во дворе.", 8),
-            new("Lantern Landing", new(110.66, 131.83), "Идите на северо-восток. У переправы держитесь суши и проверяйте дома по пути.", 8)
-        ], ClickGuide, Via: [[new(86, 142), new(97, 143), new(103, 135)]]),
-        new("Раскопки у The Chest", "Обход песчаной косы вокруг гигантского сундука. В подсчёте только закопанные точки.",
-        [
-            new("Восточный берег", new(96, 109), "Начните с восточного края пляжа. Ищите бугорки на песке.", 5.5),
-            new("Южная коса", new(91, 111), "Обойдите гигантский сундук с юга, раскапывая точки по ходу.", 5.5),
-            new("Западная сторона", new(91, 104), "Двигайтесь на север вдоль песка. Оставьте время на переправу обратно.", 6)
-        ], "https://fortniteshoptoken.wiki/chest-routes/the-chest/", "buried_chests"),
-        new("Островки к северу от порта", "Короткий маршрут от Loguetown к мелким островам. По пути есть переправы.",
-        [
-            new("Южный край Loguetown", new(124, 181), "Возьмите оружие в городе и спуститесь к кромке воды.", 5),
-            new("Первый островок", new(140, 179), "Переберитесь на восток к ближайшему островку и осмотрите берег.", 5),
-            new("Южная отмель", new(141, 192), "Двигайтесь на юг по островкам. Если шторм близко, выходите к порту.", 5.5)
-        ], ClickGuide),
-        new("Северо-восточный остров", "Высадка на отдельном острове с выходом к Fortune’s Fort.",
-        [
-            new("Северо-восточный пляж", new(197, 78), "Начните с песка. Обойдите остров по берегу и выкопайте заметные сундуки.", 5.5),
-            new("Берег Fortune’s Fort", new(170, 89), "Возвращайтесь на юго-запад к материку. Продолжайте у укрытий на берегу.", 7)
-        ], TokenGuide),
-        new("Спуск в Cursed Cavern", "Короткий обход пещеры сверху вниз. Перепады высот смотрите в игре.",
-        [
-            new("Северный уступ", new(146, 140), "Начните на кромке пещеры и подберите сундуки снаружи.", 5),
-            new("Площадка в пещере", new(149, 146), "Спуститесь на следующий уступ. Проверьте боковые проходы.", 5),
-            new("Южный выход", new(152, 152), "Загляните на нижний уровень и выходите к The Salty Skull.", 5)
-        ], TokenGuide)
+        new(RouteArea.Resort, RouteArea.Chest, [new(99, 99), new(96, 103)], "Переправа между курортом и песчаной косой.", true),
+        new(RouteArea.Chest, RouteArea.Lantern, [new(101, 109), new(103, 120), new(108, 127)], "Короткая переправа с косы, дальше по суше к пристани.", true),
+        new(RouteArea.Chest, RouteArea.Lagoon, [new(102, 109), new(114, 108), new(124, 108)], "Переправа с косы, затем на восток вдоль северного берега.", true),
+        new(RouteArea.Lagoon, RouteArea.Fort, [new(140, 107), new(150, 107), new(156, 106)], "Держитесь прибрежного прохода между лагуной и фортом."),
+        new(RouteArea.Fort, RouteArea.NorthIslet, [new(173, 97), new(180, 86)], "Длинная переправа. Проверьте круг и запас мобильности.", true),
+        new(RouteArea.Fort, RouteArea.Boat, [new(161, 110), new(162, 117), new(173, 120)], "Спуск на юг, затем вдоль песчаного полуострова."),
+        new(RouteArea.Lagoon, RouteArea.Lantern, [new(126, 113), new(119, 123)], "Держитесь тропы между лагуной и пристанью."),
+        new(RouteArea.Lagoon, RouteArea.Cavern, [new(133, 116), new(140, 127), new(144, 137)], "Пройдите с северной стороны по суше вдоль речной долины."),
+        new(RouteArea.Boat, RouteArea.Cavern, [new(170, 127), new(156, 133)], "Следуйте по песчаной дороге к северному уступу пещеры."),
+        new(RouteArea.Boat, RouteArea.Rocky, [new(178, 130), new(176, 143)], "Переправа к линкору со стороны пляжа.", true),
+        new(RouteArea.Arlong, RouteArea.Lantern, [new(87, 143), new(97, 143), new(103, 136)], "Используйте дорогу через узкий пролив."),
+        new(RouteArea.Arlong, RouteArea.Mill, [new(78, 151), new(81, 163), new(82, 171), new(90, 175)], "Держитесь западного побережья. У отмели выбирайте короткую переправу.", true),
+        new(RouteArea.Lantern, RouteArea.Battlefield, [new(110, 140), new(113, 149)], "Переход по суше вдоль тропы через руины."),
+        new(RouteArea.Lantern, RouteArea.Cavern, [new(120, 135), new(132, 135), new(142, 141)], "Идите через центральную часть острова к верхнему уступу."),
+        new(RouteArea.Battlefield, RouteArea.Mill, [new(105, 163), new(98, 168), new(97, 178)], "Спуститесь к юго-западному берегу. Есть короткая переправа.", true),
+        new(RouteArea.Battlefield, RouteArea.Logue, [new(116, 164), new(119, 170)], "Пройдите по суше между руинами и городом."),
+        new(RouteArea.Battlefield, RouteArea.Skull, [new(132, 156), new(141, 154)], "Идите по центральной тропе вдоль южных уступов."),
+        new(RouteArea.Cavern, RouteArea.Skull, [new(151, 149)], "Переход между верхними и нижними уровнями пещеры."),
+        new(RouteArea.Skull, RouteArea.Logue, [new(142, 164), new(131, 169)], "Переход по южной тропе между городом и подножием пещеры."),
+        new(RouteArea.Skull, RouteArea.Rocky, [new(162, 158), new(170, 154)], "Короткая переправа у корабля.", true),
+        new(RouteArea.Skull, RouteArea.Bay, [new(156, 163), new(165, 170), new(169, 180)], "Держитесь юго-восточной дороги и перехода через пролив."),
+        new(RouteArea.Rocky, RouteArea.Bay, [new(177, 162), new(172, 169), new(169, 179)], "Переправа от корабля, дальше вдоль побережья.", true),
+        new(RouteArea.Mill, RouteArea.Logue, [new(97, 173), new(108, 170), new(114, 173)], "Используйте дорогу между деревней и городом."),
+        new(RouteArea.Logue, RouteArea.Henry, [new(127, 183), new(138, 190)], "Переправляйтесь между южными островками по коротким отрезкам.", true),
+        new(RouteArea.Henry, RouteArea.Port, [new(152, 197), new(147, 201)], "Короткая переправа между островком и портом.", true),
+        new(RouteArea.Henry, RouteArea.Baratie, [new(155, 190), new(163, 188), new(170, 188)], "Переправляйтесь через южный пролив.", true),
+        new(RouteArea.Port, RouteArea.Bay, [new(153, 202), new(163, 196), new(170, 190)], "Держитесь берега и коротких переправ вдоль бухты.", true),
+        new(RouteArea.Bay, RouteArea.Baratie, [new(175, 186)], "Пройдите вдоль пристани у ресторана.")
     ];
+
+    public static readonly RoutePreset[] Guides =
+    [
+        new("Северная дуга", "Курорт, раскопки и северное побережье до форта.", [RouteArea.Resort, RouteArea.Chest, RouteArea.Lagoon, RouteArea.Fort]),
+        new("От парка до Логтауна", "Плотная застройка на западе, затем через руины к городу.", [RouteArea.Arlong, RouteArea.Lantern, RouteArea.Battlefield, RouteArea.Logue]),
+        new("Раскопки с выходом в город", "Бугорки на косе, здания у пристани и крыши Логтауна.", [RouteArea.Chest, RouteArea.Lantern, RouteArea.Battlefield, RouteArea.Logue]),
+        new("Деревни западного берега", "От Арлонг-парка по побережью к мельницам и улицам Логтауна.", [RouteArea.Arlong, RouteArea.Mill, RouteArea.Logue]),
+        new("Через центр к пещере", "Дома у пристани, верхние уровни пещеры и южный выход.", [RouteArea.Lantern, RouteArea.Cavern, RouteArea.Skull, RouteArea.Logue]),
+        new("Северо-восточная высадка", "Раскопки на отдельном островке, затем форт и лагуна.", [RouteArea.NorthIslet, RouteArea.Fort, RouteArea.Lagoon]),
+        new("Форт, пляж и линкор", "Восточное побережье с переправой на корабль.", [RouteArea.Fort, RouteArea.Boat, RouteArea.Rocky, RouteArea.Bay]),
+        new("Вдоль южных причалов", "Из Логтауна через островки к складам пиратского порта.", [RouteArea.Logue, RouteArea.Henry, RouteArea.Port, RouteArea.Bay]),
+        new("От Логтауна до Барати", "Город, южные островки и ресторан у пристани.", [RouteArea.Logue, RouteArea.Henry, RouteArea.Baratie, RouteArea.Bay]),
+        new("Из бухты в лагуну", "Подъём с юго-востока через пещеру к северному берегу.", [RouteArea.Bay, RouteArea.Skull, RouteArea.Cavern, RouteArea.Lagoon]),
+        new("С запада на север", "От парка через пристань и лагуну до форта.", [RouteArea.Arlong, RouteArea.Lantern, RouteArea.Lagoon, RouteArea.Fort]),
+        new("Через весь остров", "Длинный пробег от курорта до южных складов.", [RouteArea.Resort, RouteArea.Chest, RouteArea.Lantern, RouteArea.Battlefield, RouteArea.Logue, RouteArea.Henry, RouteArea.Port]),
+        new("Курс на восточный пляж", "Из деревни Мельниц через центральные руины к восточному побережью.", [RouteArea.Mill, RouteArea.Battlefield, RouteArea.Skull, RouteArea.Cavern, RouteArea.Boat]),
+        new("С юга к форту", "Из пиратского порта по восточной половине острова.", [RouteArea.Port, RouteArea.Bay, RouteArea.Skull, RouteArea.Cavern, RouteArea.Lagoon, RouteArea.Fort])
+    ];
+
+    private static readonly Dictionary<RouteArea, RouteCrossing[]> Neighbors = Crossings
+        .Concat(Crossings.Select(crossing => crossing.Reverse())).GroupBy(crossing => crossing.From)
+        .ToDictionary(group => group.Key, group => group.ToArray());
+
+    private static readonly Dictionary<string, RouteArea> MapLabels = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["RUBBER RESORT"] = RouteArea.Resort, ["THE CHEST"] = RouteArea.Chest, ["LOOT LAGOON"] = RouteArea.Lagoon,
+        ["FORTUNE'S FORT"] = RouteArea.Fort, ["LANTERN LANDING"] = RouteArea.Lantern, ["ARLONG PARK"] = RouteArea.Arlong,
+        ["WINDMILL VILLAGE"] = RouteArea.Mill, ["LOGUETOWN"] = RouteArea.Logue, ["CURSED CAVERN"] = RouteArea.Cavern,
+        ["PLUNDER PORT"] = RouteArea.Port, ["BUSY BAY"] = RouteArea.Bay, ["THE $.$. ROCKY"] = RouteArea.Rocky,
+        ["BOOGIE BOAT"] = RouteArea.Boat, ["GIANT'S BATTLEFIELD"] = RouteArea.Battlefield, ["THE SALTY SKULL"] = RouteArea.Skull,
+        ["BARATIE"] = RouteArea.Baratie, ["HENRY"] = RouteArea.Henry
+    };
+
+    public static string Label(string name) => MapLabels.TryGetValue(name, out var area) ? Districts[area].Name : name;
+    public static IEnumerable<(RouteArea Area, string Name)> Starts => Districts.Select(pair => (pair.Key, pair.Value.Name));
+
+    private readonly Dictionary<RouteArea, ChestPin[]> pinsByArea;
+
+    public ChestRoutes(IReadOnlyList<ChestPin> pins)
+    {
+        // Assign each spawn to at most one district, even where the search areas overlap.
+        var assigned = pins.Where(IsChest).Select(pin => (Pin: pin, Area: NearestArea(pin.World)))
+            .Where(item => item.Area.HasValue).ToLookup(item => item.Area!.Value, item => item.Pin);
+        pinsByArea = Districts.Keys.ToDictionary(area => area, area => assigned[area].ToArray());
+    }
+
+    private static RouteArea? NearestArea(Point point)
+    {
+        // The restaurant and the surrounding bay share a map label cluster.
+        // Keep Baratie's immediate piers separate from the rest of the bay.
+        if ((point - Districts[RouteArea.Baratie].Center).Length <= 3) return RouteArea.Baratie;
+        var nearest = Districts.Where(pair => pair.Key != RouteArea.Baratie && (pair.Value.Center - point).Length <= pair.Value.Radius)
+            .OrderBy(pair => (pair.Value.Center - point).LengthSquared).Select(pair => (RouteArea?)pair.Key).FirstOrDefault();
+        return nearest;
+    }
 
     public static bool IsChest(ChestPin pin) => pin.Layer is "chests" or "buried_chests" or "rare_chests";
 
-    public static RoutePlan PlanGuide(ChestRoute guide, IReadOnlyList<ChestPin> pins)
+    public RoutePlan Plan(RoutePreset preset)
     {
-        var remaining = pins.Where(pin => IsChest(pin) && (guide.Layer == null || guide.Layer == pin.Layer)).ToList();
-        var groups = new List<IReadOnlyList<ChestPin>>();
-        foreach (var stop in guide.Stops)
+        var crossings = preset.Areas.Zip(preset.Areas.Skip(1)).Select(pair => Neighbors[pair.First].Single(edge => edge.To == pair.Second)).ToArray();
+        var stages = preset.Areas.Select((area, index) =>
         {
-            var local = remaining.Where(pin => (pin.World - stop.Location).Length <= stop.Radius).ToArray();
-            groups.Add(local);
-            remaining.RemoveAll(pin => local.Contains(pin));
-        }
-        return new(guide, groups.ToArray());
+            var district = Districts[area];
+            var enter = index == 0 ? district.Center : crossings[index - 1].Via.Last();
+            var exit = index >= crossings.Length ? (Point?)null : crossings[index].Via.First();
+            return new RouteStage(district, district.Search, OrderPins(pinsByArea[area], enter, exit));
+        }).ToArray();
+        return new(preset.Name, preset.Summary, preset.Areas, stages, crossings);
     }
 
-    public static RoutePlan Generate(MapPlace start, int limit, string? layer, IReadOnlyList<ChestPin> pins)
+    public RoutePlan? Open(SavedRoute saved)
     {
-        // Search one neighborhood and prefer short connections between nearby chest spots.
-        var candidates = pins.Where(pin => IsChest(pin) && (layer == null || pin.Layer == layer)
-            && (pin.World - start.Position).Length <= 19).ToList();
-        var best = new List<ChestPin>();
-        double bestLength = double.PositiveInfinity;
-        foreach (var first in candidates.OrderBy(pin => (pin.World - start.Position).LengthSquared).Take(14))
+        var areas = new List<RouteArea>();
+        foreach (string value in saved.Areas)
         {
-            var path = new List<ChestPin> { first };
-            var remaining = candidates.Where(pin => pin.Id != first.Id).ToList();
-            while (path.Count < limit && remaining.Count > 0)
+            if (!Enum.TryParse(value, out RouteArea area) || !Districts.ContainsKey(area) || areas.Contains(area)) return null;
+            if (areas.Count > 0 && !Neighbors[areas[^1]].Any(edge => edge.To == area)) return null;
+            areas.Add(area);
+        }
+        return areas.Count < 3 ? null : Plan(new(saved.Name, "", areas.ToArray()));
+    }
+
+    public RoutePlan Generate(RouteArea start, int goal, bool avoidWater)
+    {
+        const int maxStages = 9;
+        var path = new List<RouteArea> { start };
+        var best = path.ToArray();
+        int bestCount = 0;
+        double bestCost = double.PositiveInfinity;
+
+        void Visit(RouteArea area, int count, double distance)
+        {
+            // Compare routes that reach the target by travel cost. If the target
+            // is out of reach, choose the route with the most spawn locations.
+            if (path.Count >= 3)
             {
-                var origin = path[^1].World;
-                var next = remaining.MinBy(pin => (pin.World - origin).LengthSquared)!;
-                if ((next.World - origin).Length > 7.5) break;
-                path.Add(next);
-                remaining.Remove(next);
+                int progress = Math.Min(count, goal);
+                double cost = distance + Math.Max(0, count - goal) * 0.25;
+                if (progress > bestCount || (progress == bestCount && cost < bestCost))
+                {
+                    best = path.ToArray();
+                    bestCount = progress;
+                    bestCost = cost;
+                }
+                if (count >= goal) return;
             }
-            Shorten(path);
-            double length = (path[0].World - start.Position).Length;
-            for (int i = 1; i < path.Count; i++) length += (path[i].World - path[i - 1].World).Length;
-            if (path.Count < best.Count || (path.Count == best.Count && length >= bestLength)) continue;
-            best = path;
-            bestLength = length;
-        }
-        var stops = best.Select((pin, i) => new RouteStop(
-            LayerName(pin.Layer), pin.World, i == 0 ? $"Первая точка рядом с {start.Name}."
-            : pin.Layer == "buried_chests" ? "Ищите бугорок и раскопайте его." : "Проверьте ближайшее укрытие и соседние этажи.")).ToArray();
-        string summary = best.Count switch
-        {
-            0 => "Рядом с этой высадкой нет отмеченных точек выбранного типа. Выберите другой тип или место.",
-            _ when best.Count < limit => $"Рядом с {start.Name} нашлось {best.Count} из {limit} запрошенных точек в пределах коротких переходов.",
-            _ => $"Порядок сбора от {start.Name} с короткими переходами между точками."
-        };
-        return new(new("Маршрут от " + start.Name, summary, stops), best.Select(pin => (IReadOnlyList<ChestPin>)new[] { pin }).ToArray());
-    }
-
-    private static void Shorten(List<ChestPin> path)
-    {
-        // Keep the landing point and reverse a section only if both new links stay short.
-        for (int i = 1; i < path.Count - 2; i++)
-        {
-            for (int j = i + 1; j < path.Count - 1; j++)
+            if (path.Count == maxStages || distance >= bestCost && bestCount >= goal) return;
+            foreach (var edge in Neighbors[area])
             {
-                double first = (path[i - 1].World - path[j].World).Length;
-                double second = (path[i].World - path[j + 1].World).Length;
-                double previous = (path[i - 1].World - path[i].World).Length + (path[j].World - path[j + 1].World).Length;
-                if (first <= 7.5 && second <= 7.5 && first + second < previous) path.Reverse(i, j - i + 1);
+                if (path.Contains(edge.To)) continue;
+                path.Add(edge.To);
+                Visit(edge.To, count + pinsByArea[edge.To].Length, distance + TravelCost(edge, avoidWater));
+                path.RemoveAt(path.Count - 1);
             }
         }
+
+        Visit(start, pinsByArea[start].Length, 0);
+        string summary = bestCount < goal ? $"На этом маршруте меньше {goal} возможных сундуков." : "";
+        return Plan(new("Маршрут на " + goal + " сундуков", summary, best));
     }
 
-    public static string LayerName(string layer) => layer switch
+    private static double TravelCost(RouteCrossing edge, bool avoidWater)
     {
-        "buried_chests" => "Закопанный сундук",
-        "rare_chests" => "Редкий сундук",
-        _ => "Обычный сундук"
-    };
+        var points = edge.Via.Prepend(Districts[edge.From].Center).Append(Districts[edge.To].Center).ToArray();
+        double distance = points.Zip(points.Skip(1)).Sum(pair => (pair.First - pair.Second).Length);
+        return distance + (edge.Water ? (avoidWater ? 1000 : 12) : 0);
+    }
+
+    private static ChestPin[] OrderPins(ChestPin[] pins, Point enter, Point? exit)
+    {
+        var remaining = pins.ToList();
+        var path = new List<ChestPin>();
+        var current = enter;
+        while (remaining.Count > 0)
+        {
+            var next = remaining.MinBy(pin => (pin.World - current).Length -
+                (exit is Point destination ? (pin.World - destination).Length * 0.28 : 0))!;
+            path.Add(next);
+            remaining.Remove(next);
+            current = next.World;
+        }
+        return path.ToArray();
+    }
 }

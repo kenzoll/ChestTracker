@@ -367,26 +367,54 @@ public static class SelfTests
             store.State.Baselines["someone-else"] = 150;
             Require(store.HasInitialBalance && store.Total == 150);
         });
-        Test("Published routes use unique real map pins; the generator honors start, category and limits", () =>
+        Test("Ready and generated routes cover several connected districts without counting a spawn twice", () =>
         {
             var map = new ChestMap();
             map.EnsureLoaded();
+            var planner = new ChestRoutes(map.MapPins);
+            var used = new HashSet<RouteArea>();
             foreach (var guide in ChestRoutes.Guides)
             {
-                var plan = ChestRoutes.PlanGuide(guide, map.MapPins);
-                var pins = plan.Pins.SelectMany(group => group).ToArray();
-                Require(plan.Count > 0 && plan.Pins.All(group => group.Count > 0));
+                var plan = planner.Plan(guide);
+                var pins = plan.Stages.SelectMany(stage => stage.Pins).ToArray();
+                used.UnionWith(plan.Areas);
+                Require(plan.Stages.Length >= 3 && plan.Crossings.Length == plan.Stages.Length - 1);
+                Require(pins.Length >= 55 && plan.Stages.All(stage => stage.Pins.Length > 0));
                 Require(pins.Length == pins.Select(pin => pin.Id).Distinct().Count());
                 Require(pins.All(ChestRoutes.IsChest));
-                if (guide.Layer != null) Require(pins.All(pin => pin.Layer == guide.Layer));
             }
-            var start = map.Places.First(place => place.Name == "THE CHEST");
-            var generated = ChestRoutes.Generate(start, 8, "buried_chests", map.MapPins);
-            Require(generated.Count == 8);
-            var ordered = generated.Pins.Select(group => group.Single()).ToArray();
-            Require(ordered.All(pin => pin.Layer == "buried_chests" && (pin.World - start.Position).Length <= 19));
-            Require(ordered.Zip(ordered.Skip(1)).All(pair => (pair.First.World - pair.Second.World).Length <= 7.5));
-            Require(ChestRoutes.Generate(start, 8, "sprite_chests", map.MapPins).Count == 0);
+            Require(ChestRoutes.Guides.Length == 14 && used.Count == ChestRoutes.Starts.Count());
+            foreach (var (area, name) in ChestRoutes.Starts)
+            {
+                Require(name.Any(c => c is >= 'А' and <= 'я'));
+                var generated = planner.Generate(area, 150, avoidWater: true);
+                Require(generated.Count >= 150 && generated.Areas[0] == area);
+                Require(generated.Stages.Length >= 3 && generated.Areas.Length == generated.Areas.Distinct().Count());
+            }
+            var shortRoute = planner.Generate(RouteArea.Lantern, 60, avoidWater: true);
+            var longRoute = planner.Generate(RouteArea.Lantern, 250, avoidWater: true);
+            Require(longRoute.Count >= 250 && longRoute.Count > shortRoute.Count && longRoute.Stages.Length > shortRoute.Stages.Length);
+        });
+        Test("Custom route survives restart and reopens with the same chest order, then can be renamed and removed", () =>
+        {
+            var map = new ChestMap();
+            map.EnsureLoaded();
+            var planner = new ChestRoutes(map.MapPins);
+            var plan = planner.Generate(RouteArea.Chest, 200, avoidWater: true);
+            var store = new TrackerStore(Path.Combine(root, "saved-routes"));
+            var route = new SavedRoute("route-1", "Мой пробег", plan.Areas.Select(area => area.ToString()).ToArray());
+            store.StoreRoute(route);
+            store = new TrackerStore(store.Folder);
+            var saved = store.State.SavedRoutes.Single();
+            var restored = planner.Open(saved);
+            Require(restored != null && restored.Name == "Мой пробег" && restored.Areas.SequenceEqual(plan.Areas));
+            Require(restored!.Stages.SelectMany(stage => stage.Pins).SequenceEqual(plan.Stages.SelectMany(stage => stage.Pins)));
+            Require(planner.Open(saved with { Areas = ["Fort", "Port", "Cavern"] }) == null);
+            store.StoreRoute(saved with { Name = "Маршрут с новым именем" });
+            store = new TrackerStore(store.Folder);
+            Require(store.State.SavedRoutes.Single().Name == "Маршрут с новым именем");
+            store.RemoveRoute(store.State.SavedRoutes.Single());
+            Require(new TrackerStore(store.Folder).State.SavedRoutes.Count == 0);
         });
         Test("Spirit reminder waits fifteen seconds and resets for a new match", () =>
         {

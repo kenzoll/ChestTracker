@@ -9,23 +9,37 @@ public static class HistoryRecount
         var available=files.ToDictionary(f=>f.Name,StringComparer.OrdinalIgnoreCase);
         foreach(var old in store.State.Matches.Where(m=>m.CounterVersion<CounterSchema.Version).OrderBy(m=>m.TimeUtc))
         {
-            string key=$"{CounterSchema.Version}|{old.Profile}|{old.Id}";
-            available.TryGetValue(Path.GetFileName(old.File??""),out var file);
-            string stamp=file==null?"missing:"+old.File:$"{file.Name}|{file.Length}|{file.LastWriteTimeUtc.Ticks}";
-            if(store.State.RecountAttempts.GetValueOrDefault(key)==stamp)continue;
-            return new(old,file,key,stamp);
+            available.TryGetValue(Path.GetFileName(old.File ?? ""), out var file);
+            var request = Request(old, file);
+            if (store.State.RecountAttempts.GetValueOrDefault(request.AttemptKey) != request.Stamp) return request;
         }
         return null;
     }
-    public static bool Apply(TrackerStore store,RecountRequest request,MatchEntry fresh)
+    public static string Stamp(FileInfo file) => $"{file.Name}|{file.Length}|{file.LastWriteTimeUtc.Ticks}";
+
+    public static RecountRequest Request(MatchEntry match, FileInfo? file) =>
+        new(match, file, $"{CounterSchema.Version}|{match.Profile}|{match.Id}", file == null ? "missing:" + match.File : Stamp(file));
+
+    public static bool Apply(TrackerStore store,RecountRequest request,MatchEntry fresh, bool manual = false)
     {
         if(fresh.Id!=request.Match.Id||fresh.Profile!=request.Match.Profile)
             throw new InvalidDataException("Повтор не совпадает с матчем и владельцем в истории");
         int index=store.State.Matches.IndexOf(request.Match);if(index<0)return false;
-        string backup=Path.Combine(store.Folder,"history-before-5.0.json");
+        string backup = Path.Combine(store.Folder, manual ? "history-before-manual-recount.json" : "history-before-5.0.json");
         if(File.Exists(store.PathName)&&!File.Exists(backup))File.Copy(store.PathName,backup,false);
-        fresh.CounterVersion=CounterSchema.Version;fresh.RecountStatus="Пересчитано в 5.0";
-        store.State.Matches[index]=fresh;store.State.RecountAttempts[request.AttemptKey]=request.Stamp;
+        fresh.CounterVersion = CounterSchema.Version;
+        fresh.RecountStatus = manual ? "Пересчитано вручную" : "Пересчитано в 5.0";
+        store.State.Matches[index] = fresh;
+        if (manual)
+        {
+            try { store.Save(); }
+            catch
+            {
+                store.State.Matches[index] = request.Match;
+                throw;
+            }
+        }
+        else store.State.RecountAttempts[request.AttemptKey] = request.Stamp;
         store.Log($"Пересчёт {fresh.DateLabel}: {request.Match.Normal}/{request.Match.Rare} → {fresh.Normal}/{fresh.Rare}");
         return true;
     }

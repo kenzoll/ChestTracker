@@ -126,11 +126,36 @@ public static class Program
             var restored = new TrackerStore(store.Folder);
             var again = new ReplayWatcher(restored); again.ScanAsync().GetAwaiter().GetResult();
             if (restored.State.Matches.Count != 1 || restored.Total != total) throw new Exception("Replay duplicated after restart");
+            var original = restored.State.Matches.Single();
+            original.Normal += 9;
+            original.Rare += 4;
+            restored.AddManualChests(7, original.TimeUtc);
+            long badTotal = restored.Total;
+            again.Toggle();
+            long delta = again.RecountMatchAsync(original).GetAwaiter().GetResult();
+            var updated = new TrackerStore(restored.Folder);
+            if (delta != -13 || updated.Total != total + 7 || updated.Total != badTotal + delta ||
+                updated.State.Matches.Count != 1 || updated.Baseline != 100 || updated.ManualTotal != 7 ||
+                updated.HistoryDays().Single().Total != total - 100 + 7 ||
+                updated.State.Matches.Single().RecountStatus != "Пересчитано вручную" ||
+                !System.IO.File.Exists(Path.Combine(restored.Folder, "history-before-manual-recount.json")))
+                throw new Exception("Manual recount did not replace exactly one match and update the totals");
+            string unavailable = target + ".missing";
+            System.IO.File.Move(target, unavailable);
+            try
+            {
+                again.RecountMatchAsync(restored.State.Matches.Single()).GetAwaiter().GetResult();
+                throw new Exception("Missing replay was accepted");
+            }
+            catch (FileNotFoundException) { }
+            finally { System.IO.File.Move(unavailable, target); }
+            if (restored.Total != updated.Total) throw new Exception("Missing replay changed the total");
+            again.Toggle();
             string broken = Path.Combine(demos, "broken.replay"); System.IO.File.WriteAllText(broken, "bad replay");
             System.IO.File.SetLastWriteTimeUtc(broken, DateTime.UtcNow.AddMinutes(-2));
             again.ScanAsync().GetAwaiter().GetResult(); again.ScanAsync().GetAwaiter().GetResult();
             if (restored.State.Matches.Count != 1 || again.ErrorCount != 1) throw new Exception("Invalid replay added as a zero match");
-            System.IO.File.WriteAllText(report, $"PASS Automatic detection/import of real replay\nPASS Duplicate rejection\nPASS Restart persistence\nPASS Corrupt replay rejected without a false zero\nMatches: {restored.State.Matches.Count}; total with initial 100: {total}\n" + string.Join("\n", restored.State.Log));
+            System.IO.File.WriteAllText(report, $"PASS Automatic detection/import of real replay\nPASS Duplicate rejection\nPASS Restart persistence\nPASS Corrupt replay rejected without a false zero\nPASS Manual recount replaces a real match and updates the day and overall totals\nPASS Missing original replay preserves the count\nMatches: {restored.State.Matches.Count}; total with initial 100: {total}\n" + string.Join("\n", restored.State.Log));
             return 0;
         }
         catch(Exception e) { System.IO.File.WriteAllText(report, "FAIL " + e.Message); return 1; }

@@ -23,8 +23,12 @@ public sealed class ReplayWatcher(TrackerStore store)
     public void Toggle()
     {
         Running = !Running;
-        if (!Running) cancellation.Cancel();
-        else { cancellation.Dispose(); cancellation = new(); }
+        if (!Running)
+        {
+            cancellation.Cancel();
+            cancellation.Dispose();
+            cancellation = new();
+        }
         if (!Running) { Status = "Наблюдение на паузе"; Detail = "Нажмите «Продолжить», когда будете готовы."; Phase = "paused"; }
         Updated?.Invoke(false);
     }
@@ -131,7 +135,7 @@ public sealed class ReplayWatcher(TrackerStore store)
                     Phase="recounting";Status="Пересчитываю сохранённые матчи";Detail="Проверяю сундуки по новой системе. История и начальная сумма сохраняются.";Updated?.Invoke(false);
                     var repaired=await AnalyzeAsync(request.File.FullName,token);token.ThrowIfCancellationRequested();
                     request.File.Refresh();
-                    if(request.Stamp!=$"{request.File.Name}|{request.File.Length}|{request.File.LastWriteTimeUtc.Ticks}")return;
+                    if (!request.File.Exists || request.Stamp != HistoryRecount.Stamp(request.File)) return;
                     if(repaired.Status=="ready"&&repaired.Match!=null)
                     {
                         try{HistoryRecount.Apply(store,request,repaired.Match);}
@@ -169,6 +173,46 @@ public sealed class ReplayWatcher(TrackerStore store)
             Updated?.Invoke(changed);
         }
     }
+    public async Task<long> RecountMatchAsync(MatchEntry match)
+    {
+        if (Busy) throw new InvalidOperationException("Дождитесь окончания текущего анализа.");
+        var token = cancellation.Token;
+        token.ThrowIfCancellationRequested();
+        Busy = true;
+        Updated?.Invoke(false);
+        bool changed = false;
+        try
+        {
+            string? name = Path.GetFileName(match.File);
+            if (string.IsNullOrWhiteSpace(name) || !Path.GetExtension(name).Equals(".replay", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("Для этого матча нет исходного повтора.");
+            var file = new FileInfo(Path.Combine(store.State.ReplayFolder, name));
+            if (!file.Exists) throw new FileNotFoundException("Исходный повтор больше не найден в папке Fortnite.");
+            var request = HistoryRecount.Request(match, file);
+            var header = ReplayProbe.Read(file.FullName);
+            if (!header.Valid || header.Live || header.MissingKey)
+                throw new InvalidDataException("Исходный повтор повреждён или ещё записывается.");
+
+            var result = await AnalyzeAsync(file.FullName, token);
+            token.ThrowIfCancellationRequested();
+            file.Refresh();
+            if (!file.Exists || request.Stamp != HistoryRecount.Stamp(file))
+                throw new InvalidDataException("Файл повтора изменился во время анализа.");
+            if (result.Status != "ready" || result.Match == null)
+                throw new InvalidDataException(string.IsNullOrWhiteSpace(result.Message) ? "Не удалось прочитать повтор." : result.Message);
+
+            result.Match.TimeUtc = match.TimeUtc;
+            changed = HistoryRecount.Apply(store, request, result.Match, manual: true);
+            if (!changed) throw new InvalidOperationException("Запись матча больше не найдена в истории.");
+            return (long)result.Match.Total - match.Total;
+        }
+        finally
+        {
+            Busy = false;
+            Updated?.Invoke(changed);
+        }
+    }
+
     private async Task<AnalysisResult> AnalyzeAsync(string path, CancellationToken token)
     {
         string output = Path.Combine(store.Folder, ".analysis-" + Guid.NewGuid().ToString("N") + ".json");

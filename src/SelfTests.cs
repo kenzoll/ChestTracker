@@ -341,10 +341,57 @@ public static class SelfTests
             Require(old.Total==14&&old.CounterVersion<CounterSchema.Version&&HistoryRecount.Next(store,Array.Empty<FileInfo>())==null);
             string file=Path.Combine(store.Folder,"missing.replay");System.IO.File.WriteAllText(file,"reappeared");Require(HistoryRecount.Next(store,[new FileInfo(file)])!=null);
         });
-        Test("Spirit reminder waits twenty seconds and resets for a new match", () =>
+        Test("Manual counts survive restart, carry to the first account and use the Windows calendar", () =>
+        {
+            var store = new TrackerStore(Path.Combine(root, "manual-counts"));
+            var today = new DateTime(2026, 11, 12, 12, 0, 0, DateTimeKind.Utc);
+            var yesterday = today.AddDays(-1);
+            Require(!store.HasInitialBalance);
+            store.SetInitialBalance(0);
+            store = new TrackerStore(store.Folder);
+            Require(store.HasInitialBalance && store.Baseline == 0);
+            bool rejected = false;
+            try { store.SetInitialBalance(99); } catch (InvalidOperationException) { rejected = true; }
+            Require(rejected);
+            store.AddManualChests(4, yesterday);
+            store.AddManualChests(6, today);
+            Require(store.Add(new MatchEntry { Id = "one", Profile = "owner", TimeUtc = yesterday, Normal = 3, Rare = 1 }));
+            store.Save();
+            store = new TrackerStore(store.Folder);
+            var days = store.HistoryDays();
+            Require(store.HasInitialBalance && store.Total == 14 && store.ManualTotal == 10 && days.Length == 2);
+            Require(days[0].Date == GameClock.Local(today).Date && days[0].Total == 6 && days[0].Matches.Length == 0);
+            Require(days[1].Total == 8 && days[1].MatchTotal == 4 && days[1].Manual == 4);
+            store.State.ActiveProfile = "someone-else";
+            Require(!store.HasInitialBalance && store.Total == 0 && store.HistoryDays().Length == 0);
+            store.State.Baselines["someone-else"] = 150;
+            Require(store.HasInitialBalance && store.Total == 150);
+        });
+        Test("Published routes use unique real map pins; the generator honors start, category and limits", () =>
+        {
+            var map = new ChestMap();
+            map.EnsureLoaded();
+            foreach (var guide in ChestRoutes.Guides)
+            {
+                var plan = ChestRoutes.PlanGuide(guide, map.MapPins);
+                var pins = plan.Pins.SelectMany(group => group).ToArray();
+                Require(plan.Count > 0 && plan.Pins.All(group => group.Count > 0));
+                Require(pins.Length == pins.Select(pin => pin.Id).Distinct().Count());
+                Require(pins.All(ChestRoutes.IsChest));
+                if (guide.Layer != null) Require(pins.All(pin => pin.Layer == guide.Layer));
+            }
+            var start = map.Places.First(place => place.Name == "THE CHEST");
+            var generated = ChestRoutes.Generate(start, 8, "buried_chests", map.MapPins);
+            Require(generated.Count == 8);
+            var ordered = generated.Pins.Select(group => group.Single()).ToArray();
+            Require(ordered.All(pin => pin.Layer == "buried_chests" && (pin.World - start.Position).Length <= 19));
+            Require(ordered.Zip(ordered.Skip(1)).All(pair => (pair.First.World - pair.Second.World).Length <= 7.5));
+            Require(ChestRoutes.Generate(start, 8, "sprite_chests", map.MapPins).Count == 0);
+        });
+        Test("Spirit reminder waits fifteen seconds and resets for a new match", () =>
         {
             var store=new TrackerStore(Path.Combine(root,"reminder-delay"));var now=new DateTime(2026,11,9,10,0,0,DateTimeKind.Utc);
-            Require(ReminderPolicy.Queue(store,"match",now));Require(!ReminderPolicy.Ready(store.State,now.AddSeconds(19)));Require(ReminderPolicy.Ready(store.State,now.AddSeconds(20)));
+            Require(ReminderPolicy.Queue(store,"match",now));Require(!ReminderPolicy.Ready(store.State,now.AddSeconds(14)));Require(ReminderPolicy.Ready(store.State,now.AddSeconds(15)));
             new LobbyReminder(store).DismissForMatchStart();Require(!ReminderPolicy.Ready(store.State,now.AddMinutes(1)));
         });
         Test("Reward probabilities are cumulative estimates with zero and saturation handled", () =>

@@ -51,7 +51,7 @@ public partial class MainWindow
         }
         WeekHeading.Text=$"Неделя {week.Number} — {week.Title}";WeekStatus.Text=week.Status(DateTime.UtcNow);
         WeekDates.Text=$"{GameClock.Local(week.StartUtc):dd.MM} — {GameClock.Local(week.EndUtc):dd.MM}";
-        RewardOddsNote.Text=$"Расчёт для {store.Total:N0} сундуков по общему счётчику";
+        RewardOddsNote.Text=$"Шанс получить награду хотя бы раз за {store.Total:N0} учтённых сундуков";
         RewardOddsNote.ToolTip="Шанс хотя бы одного выпадения за указанное число подходящих сундуков при обычных шансах сезона. Для недельных наград это условный расчёт: общий счётчик включает и другие недели. Шанс следующего сундука от прошлых открытий не растёт. Бонусные часы здесь не учтены.";
         RewardOddsNote.Visibility=week.Items.Length>0?Visibility.Visible:Visibility.Collapsed;
         RewardCards.Children.Clear();UnknownRewardsPanel.Visibility=week.Items.Length==0?Visibility.Visible:Visibility.Collapsed;
@@ -69,8 +69,8 @@ public partial class MainWindow
             text.Children.Add(new TextBlock{Text=reward.Name,Foreground=Brushes.White,FontSize=18,FontWeight=FontWeights.SemiBold,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,8,0,0)});Grid.SetRow(text,1);panel.Children.Add(text);
             int denominator=RewardOdds.Denominator(reward.Kind);
             var odds=new StackPanel{Margin=new Thickness(0,12,0,0),Visibility=!owned&&denominator>0?Visibility.Visible:Visibility.Collapsed};
-            odds.Children.Add(new TextBlock{Text=$"Хотя бы одно: {RewardOdds.Percent(RewardOdds.AtLeastOne(store.Total,denominator))}",FontSize=13,Foreground=Brushes.White});
-            odds.Children.Add(new TextBlock{Text=$"За сундук: 1 к {denominator:N0}",FontSize=11,Foreground=MutedBrush,Margin=new Thickness(0,5,0,0)});text.Children.Add(odds);
+            odds.Children.Add(new TextBlock{Text=$"За все сундуки · {RewardOdds.Percent(RewardOdds.AtLeastOne(store.Total,denominator))}",FontSize=13,Foreground=Brushes.White});
+            odds.Children.Add(new TextBlock{Text=$"За один сундук · 1 из {denominator:N0}",FontSize=11,Foreground=MutedBrush,Margin=new Thickness(0,5,0,0)});text.Children.Add(odds);
             var check=new CheckBox{Content="Получено",Foreground=Brushes.White,Style=(Style)Resources["RewardCheck"],IsChecked=owned,FontSize=12,Margin=new Thickness(20,12,20,20)};
             void Update(bool yes){if(yes)store.State.FoundRewards.Add(key);else store.State.FoundRewards.Remove(key);store.Save();odds.Visibility=!yes&&denominator>0?Visibility.Visible:Visibility.Collapsed;UpdateRewardProgress();}
             card.Cursor=System.Windows.Input.Cursors.Hand;
@@ -104,7 +104,7 @@ public partial class MainWindow
     private void MapZoomIn(object sender,RoutedEventArgs e)=>MapViewer.ZoomAt(new Point(MapViewer.ActualWidth/2,MapViewer.ActualHeight/2),1.5);
     private void MapZoomOut(object sender,RoutedEventArgs e)=>MapViewer.ZoomAt(new Point(MapViewer.ActualWidth/2,MapViewer.ActualHeight/2),1/1.5);
     private void MapFit(object sender,RoutedEventArgs e)=>MapViewer.Fit();
-    private void ShowAbout(object sender,RoutedEventArgs e){using var r=new StreamReader(StoragePaths.Asset("Notices.txt"));ShowText("Chest Tracker 5.0",r.ReadToEnd());}
+    private void ShowAbout(object sender,RoutedEventArgs e){using var r=new StreamReader(StoragePaths.Asset("Notices.txt"));ShowText("Chest Tracker 6.0",r.ReadToEnd());}
     private void WindowsTimeChanged(object? sender,EventArgs e)=>Dispatcher.BeginInvoke(()=>{TimeZoneInfo.ClearCachedData();Refresh(true);RenderRewardWeek(selectedWeek);});
     private void WindowsPreferenceChanged(object sender,Microsoft.Win32.UserPreferenceChangedEventArgs e){if(e.Category is Microsoft.Win32.UserPreferenceCategory.Locale or Microsoft.Win32.UserPreferenceCategory.General)WindowsTimeChanged(sender,EventArgs.Empty);}
     private void BindButtonMotion(DependencyObject root)

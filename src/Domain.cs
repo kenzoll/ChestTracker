@@ -48,6 +48,14 @@ public sealed class FileResult
     public DateTime AtUtc { get; set; } = DateTime.UtcNow;
 }
 
+public sealed record ManualChestAddition(string Profile, DateTime TimeUtc, long Count);
+public sealed record HistoryDay(DateTime Date, MatchEntry[] Matches, long Manual)
+{
+    public long MatchTotal => Matches.Sum(match => (long)match.Total);
+    public long Total => MatchTotal + Manual;
+    public string Label => $"{Date.ToString("d MMM yyyy", System.Globalization.CultureInfo.GetCultureInfo("ru-RU"))}  ·  {Total:N0}";
+}
+
 public sealed class TrackerState
 {
     public int Version { get; set; } = 2;
@@ -56,6 +64,8 @@ public sealed class TrackerState
     public string ActiveProfile { get; set; } = "";
     public Dictionary<string, long> Baselines { get; set; } = new() { [""] = 0 };
     public List<MatchEntry> Matches { get; set; } = [];
+    public HashSet<string> InitialBalancesSet { get; set; } = [];
+    public List<ManualChestAddition> ManualAdditions { get; set; } = [];
     public Dictionary<string, FileResult> Files { get; set; } = [];
     public List<string> Log { get; set; } = [];
     public HashSet<string> LegacyImports { get; set; } = [];
@@ -91,7 +101,7 @@ public sealed class TrackerStore
         }
         else State = new TrackerState();
         if (State.Version != 2 || State.Baselines.Values.Any(v => v < 0 || v > 1_000_000_000_000) ||
-            State.Matches.Any(m => m.Normal < 0 || m.Rare < 0))
+            State.Matches.Any(m => m.Normal < 0 || m.Rare < 0) || State.ManualAdditions.Any(m => m.Count is <= 0 or > 1_000_000_000_000))
             throw new InvalidDataException("Некорректный файл истории. Он сохранён без изменений.");
         if (repairClock)
         {
@@ -108,7 +118,49 @@ public sealed class TrackerStore
     }
     public IEnumerable<MatchEntry> Current => State.Matches.Where(m => m.Profile == State.ActiveProfile).OrderByDescending(m => m.TimeUtc);
     public long Baseline => State.Baselines.GetValueOrDefault(State.ActiveProfile);
-    public long Total => Baseline + Current.Sum(m => (long)m.Total);
+    public bool HasInitialBalance => Baseline > 0 || State.InitialBalancesSet.Contains(State.ActiveProfile);
+    private IEnumerable<ManualChestAddition> CurrentAdditions => State.ManualAdditions.Where(item => item.Profile == State.ActiveProfile);
+    public long ManualTotal => CurrentAdditions.Sum(item => item.Count);
+    public long Total => Baseline + Current.Sum(m => (long)m.Total) + ManualTotal;
+
+    public HistoryDay[] HistoryDays()
+    {
+        var matches = Current.ToLookup(match => GameClock.Local(match.TimeUtc).Date);
+        var additions = CurrentAdditions.ToLookup(item => GameClock.Local(item.TimeUtc).Date);
+        return matches.Select(day => day.Key).Union(additions.Select(day => day.Key)).OrderDescending()
+            .Select(date => new HistoryDay(date, matches[date].ToArray(), additions[date].Sum(item => item.Count))).ToArray();
+    }
+
+    public void SetInitialBalance(long count)
+    {
+        if (HasInitialBalance) throw new InvalidOperationException("Начальное количество уже сохранено.");
+        if (count is < 0 or > 1_000_000_000_000) throw new ArgumentOutOfRangeException(nameof(count));
+        string profile = State.ActiveProfile;
+        bool hadEntry = State.Baselines.TryGetValue(profile, out long previous);
+        State.Baselines[profile] = count;
+        State.InitialBalancesSet.Add(profile);
+        try { Save(); }
+        catch
+        {
+            State.InitialBalancesSet.Remove(profile);
+            if (hadEntry) State.Baselines[profile] = previous;
+            else State.Baselines.Remove(profile);
+            throw;
+        }
+    }
+
+    public void AddManualChests(long count, DateTime? utcNow = null)
+    {
+        if (count is <= 0 or > 1_000_000_000_000) throw new ArgumentOutOfRangeException(nameof(count));
+        _ = checked(Total + count);
+        State.ManualAdditions.Add(new(State.ActiveProfile, utcNow ?? DateTime.UtcNow, count));
+        try { Save(); }
+        catch
+        {
+            State.ManualAdditions.RemoveAt(State.ManualAdditions.Count - 1);
+            throw;
+        }
+    }
     public void Save()
     {
         var temp = PathName + ".tmp";
@@ -134,6 +186,12 @@ public sealed class TrackerStore
             var balance = State.Baselines.GetValueOrDefault("");
             State.Baselines[match.Profile] = State.Baselines.GetValueOrDefault(match.Profile) + balance;
             State.Baselines[""] = 0;
+            if (State.InitialBalancesSet.Remove("")) State.InitialBalancesSet.Add(match.Profile);
+            for (int i = 0; i < State.ManualAdditions.Count; i++)
+            {
+                var addition = State.ManualAdditions[i];
+                if (addition.Profile == "") State.ManualAdditions[i] = addition with { Profile = match.Profile };
+            }
             foreach (var old in State.Matches.Where(m => m.Profile == "")) old.Profile = match.Profile;
             State.ActiveProfile = match.Profile;
         }

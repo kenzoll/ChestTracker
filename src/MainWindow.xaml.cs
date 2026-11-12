@@ -127,6 +127,7 @@ public partial class MainWindow : Window
         PulseDot.Fill = watcher.Running ? Brushes.White : new SolidColorBrush(Color.FromRgb(105,105,115));
 
         RefreshUpdateNotice();
+        RefreshMatchButtons();
         HealthSummary.Text = watcher.FileCount > 0 ? $"Доступно повторов: {watcher.FileCount}. Новые матчи учитываются автоматически." : "Пока нет повторов. Включите запись и завершите матч.";
         refreshing = true;
         AnimationToggle.IsChecked = store.State.Animations;
@@ -139,14 +140,16 @@ public partial class MainWindow : Window
         if (total != previousTotal && store.State.Animations)
             TotalNumber.BeginAnimation(OpacityProperty, new DoubleAnimation(0.35, 1, TimeSpan.FromMilliseconds(350)));
         previousTotal = total;
+        ChestEntryButton.Content = store.HasInitialBalance ? "Добавить сундуки" : "Указать начальное количество";
         TotalCaption.Text = $"Ранее: {store.Baseline:N0}  +  по матчам: {matches.Sum(m => (long)m.Total):N0}";
+        if (store.ManualTotal > 0) TotalCaption.Text += $"  +  вручную: {store.ManualTotal:N0}";
         var last = matches.FirstOrDefault();
         LastNumber.Text = last?.Total.ToString() ?? "—";
         LastCaption.Text = last == null ? "Появится после завершения матча" : last.DateLabel;
         LastNormal.Text = last?.Normal.ToString() ?? "—";
         LastRare.Text = last?.Rare.ToString() ?? "—";
         RecentGrid.ItemsSource = matches.Take(4).ToList();
-        HistoryGrid.ItemsSource = matches;
+        RefreshHistoryDays();
         EmptyRecent.Visibility = matches.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         HistoryCaption.Text = $"Матчей: {matches.Count}   ·   По истории: {matches.Sum(m => (long)m.Total):N0} сундуков";
         int recounted=matches.Count(m=>m.RecountStatus=="Пересчитано в 5.0");
@@ -166,13 +169,14 @@ public partial class MainWindow : Window
     }
     private void ShowPage(FrameworkElement page, Button selected)
     {
-        foreach (var p in new FrameworkElement[] { CounterPage, HistoryPage, RewardsPage, MapPage, HealthPage }) p.Visibility = p == page ? Visibility.Visible : Visibility.Collapsed;
-        foreach (var button in new[] { CounterNav, HistoryNav, RewardsNav, MapNav, HealthNav })
+        foreach (var p in new FrameworkElement[] { CounterPage, HistoryPage, RewardsPage, MapPage, RoutesPage, HealthPage }) p.Visibility = p == page ? Visibility.Visible : Visibility.Collapsed;
+        foreach (var button in new[] { CounterNav, HistoryNav, RewardsNav, MapNav, RoutesNav, HealthNav })
         {
             button.Foreground = button == selected ? Brushes.White : MutedBrush;
             button.Background = button == selected ? new SolidColorBrush(Color.FromRgb(65,20,27)) : Brushes.Transparent;
         }
         if(page!=MapPage) MapViewer.ReleaseImage();
+        if(page!=RoutesPage) RouteMap.ReleaseImage();
         if (store.State.Animations)
         {
             page.RenderTransform = new TranslateTransform();
@@ -200,12 +204,20 @@ public partial class MainWindow : Window
     }
     private void ChangeBaseline(object sender, RoutedEventArgs e)
     {
-        var result = NumberDialog("Сколько сундуков уже было?", "Укажите сумму до первого учтённого матча. История будет прибавляться к ней.", new[] { ("Ранее открыто или разбито", store.Baseline) });
+        bool initial = !store.HasInitialBalance;
+        var result = initial
+            ? NumberDialog("Начальное количество", "Введите число сундуков, открытых до начала учёта. Если их не было, сохраните 0.", [("Сундуки до начала учёта", 0L)])
+            : NumberDialog("Добавить сундуки", "Введите только новые сундуки, которые приложение ещё не учло.", [("Прибавить к общему количеству", 1L)], 1);
         if (result == null) return;
-        store.State.Baselines[store.State.ActiveProfile] = result[0];
-        store.Log($"Начальная сумма: {result[0]}"); store.Save(); Refresh(true);
+        try
+        {
+            if (initial) store.SetInitialBalance(result[0]);
+            else store.AddManualChests(result[0]);
+            Refresh(true);
+        }
+        catch (Exception error) { MessageBox.Show(this, error.Message, "Не удалось сохранить количество"); }
     }
-    private long[]? NumberDialog(string title, string hint, (string Label, long Value)[] fields)
+    private long[]? NumberDialog(string title, string hint, (string Label, long Value)[] fields, long minimum = 0)
     {
         var window = new Window { Icon=Brand.Logo, Title = title, Width = 450, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize, Owner = this,
             WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = new SolidColorBrush(Color.FromRgb(16,16,16)), Foreground = Brushes.White, FontFamily = FontFamily, FontSize = 14 };
@@ -227,8 +239,8 @@ public partial class MainWindow : Window
             var values = new List<long>();
             foreach (var b in entries)
             {
-                if (!long.TryParse(b.Text.Replace(" ", "").Replace("\u00a0", ""), out long n) || n < 0 || n > 1_000_000_000_000)
-                { MessageBox.Show(window, "Введите целое неотрицательное число не больше 1 000 000 000 000."); return; }
+                if (!long.TryParse(b.Text.Replace(" ", "").Replace("\u00a0", ""), out long n) || n < minimum || n > 1_000_000_000_000)
+                { MessageBox.Show(window, $"Введите целое число от {minimum:N0} до 1 000 000 000 000."); return; }
                 values.Add(n);
             }
             result = values.ToArray(); window.DialogResult = true;

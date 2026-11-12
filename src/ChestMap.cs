@@ -9,7 +9,7 @@ namespace ChestTracker;
 public sealed record ChestPin(string Id, Point World, bool Rare, string Layer="chests");
 public sealed record MapLayer(string Id,string Label,Color Color,bool DefaultOn);
 public sealed record MapPlace(string Name,Point Position);
-public sealed class ChestMap : FrameworkElement
+public sealed partial class ChestMap : FrameworkElement
 {
     private BitmapImage? image;
     private List<ChestPin>? pins;
@@ -95,6 +95,11 @@ public sealed class ChestMap : FrameworkElement
         if(image == null || pins == null) return;
         var origin=ToScreen(new Point(0,0));
         drawing.DrawImage(image,new Rect(origin,new Size(256*Scale,256*Scale)));
+        if (routePlan != null)
+        {
+            DrawRoute(drawing);
+            return;
+        }
         foreach(var place in places)
         {
             var at=ToScreen(place.Position);if(at.X<0||at.X>ActualWidth||at.Y<0||at.Y>ActualHeight)continue;

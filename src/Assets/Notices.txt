@@ -1,4 +1,4 @@
-Chest Tracker 6.3 — Attribution and third-party licenses
+Chest Tracker 6.4 — Attribution and third-party licenses
 
 Map: Fortnite.gg / Epic Games. Map and chest coordinates obtained from the public season 43 data snapshot published at https://github.com/CheesyPoofs346/chestlab/tree/main/assets/gg . No ChestLab program code is used.
 

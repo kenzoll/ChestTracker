@@ -104,7 +104,7 @@ public partial class MainWindow
     private void MapZoomIn(object sender,RoutedEventArgs e)=>MapViewer.ZoomAt(new Point(MapViewer.ActualWidth/2,MapViewer.ActualHeight/2),1.5);
     private void MapZoomOut(object sender,RoutedEventArgs e)=>MapViewer.ZoomAt(new Point(MapViewer.ActualWidth/2,MapViewer.ActualHeight/2),1/1.5);
     private void MapFit(object sender,RoutedEventArgs e)=>MapViewer.Fit();
-    private void ShowAbout(object sender,RoutedEventArgs e){using var r=new StreamReader(StoragePaths.Asset("Notices.txt"));ShowText("Chest Tracker 6.3",r.ReadToEnd());}
+    private void ShowAbout(object sender,RoutedEventArgs e){using var r=new StreamReader(StoragePaths.Asset("Notices.txt"));ShowText("Chest Tracker 6.4",r.ReadToEnd());}
     private void WindowsTimeChanged(object? sender,EventArgs e)=>Dispatcher.BeginInvoke(()=>{TimeZoneInfo.ClearCachedData();Refresh(true);RenderRewardWeek(selectedWeek);});
     private void WindowsPreferenceChanged(object sender,Microsoft.Win32.UserPreferenceChangedEventArgs e){if(e.Category is Microsoft.Win32.UserPreferenceCategory.Locale or Microsoft.Win32.UserPreferenceCategory.General)WindowsTimeChanged(sender,EventArgs.Empty);}
     private void BindButtonMotion(DependencyObject root)

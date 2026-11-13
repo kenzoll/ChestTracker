@@ -134,6 +134,7 @@ public partial class MainWindow : Window
         ReminderToggle.IsChecked = store.State.SpiritReminder;
         refreshing = false;
         if (!history) return;
+        SubtractChestsButton.IsEnabled = store.RemovableChests > 0;
         var matches = store.Current.ToList();
         string total = store.Total.ToString("N0", System.Globalization.CultureInfo.GetCultureInfo("ru-RU"));
         TotalNumber.Text = total;
@@ -217,7 +218,22 @@ public partial class MainWindow : Window
         }
         catch (Exception error) { MessageBox.Show(this, error.Message, "Не удалось сохранить количество"); }
     }
-    private long[]? NumberDialog(string title, string hint, (string Label, long Value)[] fields, long minimum = 0)
+    private void SubtractChests(object sender, RoutedEventArgs e)
+    {
+        long maximum = Math.Min(store.RemovableChests, 1_000_000_000_000);
+        if (maximum < 1) return;
+        var result = NumberDialog("Вычесть сундуки", $"Можно убрать до {maximum:N0}. Сначала убираются последние ручные добавления, затем начальное количество.",
+            [("Сколько вычесть", 1L)], 1, maximum);
+        if (result == null) return;
+        try
+        {
+            store.SubtractManualChests(result[0]);
+            Refresh(true);
+        }
+        catch (Exception error) { MessageBox.Show(this, error.Message, "Не удалось вычесть сундуки"); }
+    }
+
+    private long[]? NumberDialog(string title, string hint, (string Label, long Value)[] fields, long minimum = 0, long maximum = 1_000_000_000_000)
     {
         var window = new Window { Icon=Brand.Logo, Title = title, Width = 450, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize, Owner = this,
             WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = new SolidColorBrush(Color.FromRgb(16,16,16)), Foreground = Brushes.White, FontFamily = FontFamily, FontSize = 14 };
@@ -239,8 +255,8 @@ public partial class MainWindow : Window
             var values = new List<long>();
             foreach (var b in entries)
             {
-                if (!long.TryParse(b.Text.Replace(" ", "").Replace("\u00a0", ""), out long n) || n < minimum || n > 1_000_000_000_000)
-                { MessageBox.Show(window, $"Введите целое число от {minimum:N0} до 1 000 000 000 000."); return; }
+                if (!long.TryParse(b.Text.Replace(" ", "").Replace("\u00a0", ""), out long n) || n < minimum || n > maximum)
+                { MessageBox.Show(window, $"Введите целое число от {minimum:N0} до {maximum:N0}."); return; }
                 values.Add(n);
             }
             result = values.ToArray(); window.DialogResult = true;

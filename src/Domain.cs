@@ -162,6 +162,46 @@ public sealed class TrackerStore
             throw;
         }
     }
+    public long RemovableChests => Baseline + ManualTotal;
+
+    public void SubtractManualChests(long count)
+    {
+        if (count <= 0 || count > RemovableChests)
+            throw new ArgumentOutOfRangeException(nameof(count), "Укажите число в пределах вручную учтённых сундуков.");
+
+        string profile = State.ActiveProfile;
+        var previous = State.ManualAdditions.ToArray();
+        long previousBaseline = Baseline;
+        bool marked = State.InitialBalancesSet.Contains(profile);
+        long remaining = count;
+        var recent = previous.Select((entry, index) => (entry, index))
+            .Where(item => item.entry.Profile == profile)
+            .OrderByDescending(item => item.entry.TimeUtc).ThenByDescending(item => item.index);
+        foreach (var (entry, index) in recent)
+        {
+            if (remaining == 0) break;
+            long removed = Math.Min(entry.Count, remaining);
+            State.ManualAdditions[index] = entry with { Count = entry.Count - removed };
+            remaining -= removed;
+        }
+        State.ManualAdditions.RemoveAll(entry => entry.Count == 0);
+        if (remaining > 0)
+        {
+            State.Baselines[profile] = previousBaseline - remaining;
+            State.InitialBalancesSet.Add(profile);
+        }
+
+        try { Save(); }
+        catch
+        {
+            State.ManualAdditions.Clear();
+            State.ManualAdditions.AddRange(previous);
+            if (remaining > 0) State.Baselines[profile] = previousBaseline;
+            if (!marked) State.InitialBalancesSet.Remove(profile);
+            throw;
+        }
+    }
+
     public void StoreRoute(SavedRoute route)
     {
         if (string.IsNullOrWhiteSpace(route.Name) || route.Name.Length > 80)

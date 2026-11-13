@@ -4,23 +4,26 @@ namespace ChestTracker;
 
 internal enum RouteArea
 {
-    Resort, Chest, Lagoon, Fort, Lantern, Arlong, Mill, Logue, Cavern, Port, Bay, Rocky, Boat, Battlefield, Skull, Baratie, Henry, NorthIslet
+    Resort, Chest, Lagoon, Fort, Lantern, Arlong, Mill, Logue, Cavern, Port, Bay, Rocky, Boat, Battlefield, Skull, Baratie, Henry, NorthIslet,
+    NorthHuts, EastSteps, Crab, EastBoat, RidgeCamp, EastTower, RiverMouth, SouthCliff, Riverside, NorthWatch,
+    SandCamp, NorthShore, Sandbar, PinkIslet, WestDocks, WestRoad, WestShoal, WestPoint, SouthRoad, RingIslet,
+    SouthIslets, SouthPier, EastShoal, SouthBeach, FarBeach
 }
 
 internal sealed record RouteDistrict(string Name, Point Center, double Radius, string Search);
 internal sealed record RouteCrossing(RouteArea From, RouteArea To, Point[] Via, string Note, bool Water = false)
 {
-    public RouteCrossing Reverse() => new(To, From, Via.Reverse().ToArray(), Note, Water);
+    public RouteCrossing Reverse(bool keepNote = true) => new(To, From, Via.Reverse().ToArray(), keepNote ? Note : "", Water);
 }
-internal sealed record RoutePreset(string Name, string Summary, RouteArea[] Areas);
+internal sealed record RoutePreset(string Name, RouteArea[] Areas);
 internal sealed record RouteStage(RouteDistrict District, string Instruction, ChestPin[] Pins);
-internal sealed record RoutePlan(string Name, string Summary, RouteArea[] Areas, RouteStage[] Stages, RouteCrossing[] Crossings)
+internal sealed record RoutePlan(string Name, RouteArea[] Areas, RouteStage[] Stages, RouteCrossing[] Crossings)
 {
     public int Count => Stages.Sum(stage => stage.Pins.Length);
 }
 public sealed record SavedRoute(string Id, string Name, string[] Areas);
 
-internal sealed class ChestRoutes
+internal sealed partial class ChestRoutes
 {
     private static readonly Dictionary<RouteArea, RouteDistrict> Districts = new()
     {
@@ -76,24 +79,6 @@ internal sealed class ChestRoutes
         new(RouteArea.Bay, RouteArea.Baratie, [new(175, 186)], "Пройдите вдоль пристани у ресторана.")
     ];
 
-    public static readonly RoutePreset[] Guides =
-    [
-        new("Северная дуга", "Курорт, раскопки и северное побережье до форта.", [RouteArea.Resort, RouteArea.Chest, RouteArea.Lagoon, RouteArea.Fort]),
-        new("От парка до Логтауна", "Плотная застройка на западе, затем через руины к городу.", [RouteArea.Arlong, RouteArea.Lantern, RouteArea.Battlefield, RouteArea.Logue]),
-        new("Раскопки с выходом в город", "Бугорки на косе, здания у пристани и крыши Логтауна.", [RouteArea.Chest, RouteArea.Lantern, RouteArea.Battlefield, RouteArea.Logue]),
-        new("Деревни западного берега", "От Арлонг-парка по побережью к мельницам и улицам Логтауна.", [RouteArea.Arlong, RouteArea.Mill, RouteArea.Logue]),
-        new("Через центр к пещере", "Дома у пристани, верхние уровни пещеры и южный выход.", [RouteArea.Lantern, RouteArea.Cavern, RouteArea.Skull, RouteArea.Logue]),
-        new("Северо-восточная высадка", "Раскопки на отдельном островке, затем форт и лагуна.", [RouteArea.NorthIslet, RouteArea.Fort, RouteArea.Lagoon]),
-        new("Форт, пляж и линкор", "Восточное побережье с переправой на корабль.", [RouteArea.Fort, RouteArea.Boat, RouteArea.Rocky, RouteArea.Bay]),
-        new("Вдоль южных причалов", "Из Логтауна через островки к складам пиратского порта.", [RouteArea.Logue, RouteArea.Henry, RouteArea.Port, RouteArea.Bay]),
-        new("От Логтауна до Барати", "Город, южные островки и ресторан у пристани.", [RouteArea.Logue, RouteArea.Henry, RouteArea.Baratie, RouteArea.Bay]),
-        new("Из бухты в лагуну", "Подъём с юго-востока через пещеру к северному берегу.", [RouteArea.Bay, RouteArea.Skull, RouteArea.Cavern, RouteArea.Lagoon]),
-        new("С запада на север", "От парка через пристань и лагуну до форта.", [RouteArea.Arlong, RouteArea.Lantern, RouteArea.Lagoon, RouteArea.Fort]),
-        new("Через весь остров", "Длинный пробег от курорта до южных складов.", [RouteArea.Resort, RouteArea.Chest, RouteArea.Lantern, RouteArea.Battlefield, RouteArea.Logue, RouteArea.Henry, RouteArea.Port]),
-        new("Курс на восточный пляж", "Из деревни Мельниц через центральные руины к восточному побережью.", [RouteArea.Mill, RouteArea.Battlefield, RouteArea.Skull, RouteArea.Cavern, RouteArea.Boat]),
-        new("С юга к форту", "Из пиратского порта по восточной половине острова.", [RouteArea.Port, RouteArea.Bay, RouteArea.Skull, RouteArea.Cavern, RouteArea.Lagoon, RouteArea.Fort])
-    ];
-
     private static readonly Dictionary<RouteArea, RouteCrossing[]> Neighbors = Crossings
         .Concat(Crossings.Select(crossing => crossing.Reverse())).GroupBy(crossing => crossing.From)
         .ToDictionary(group => group.Key, group => group.ToArray());
@@ -109,41 +94,48 @@ internal sealed class ChestRoutes
     };
 
     public static string Label(string name) => MapLabels.TryGetValue(name, out var area) ? Districts[area].Name : name;
-    public static IEnumerable<(RouteArea Area, string Name)> Starts => Districts.Select(pair => (pair.Key, pair.Value.Name));
-
     private readonly Dictionary<RouteArea, ChestPin[]> pinsByArea;
+    private readonly Dictionary<RouteArea, ChestPin[]> outskirtsPins;
 
     public ChestRoutes(IReadOnlyList<ChestPin> pins)
     {
-        // Assign each spawn to at most one district, even where the search areas overlap.
-        var assigned = pins.Where(IsChest).Select(pin => (Pin: pin, Area: NearestArea(pin.World)))
-            .Where(item => item.Area.HasValue).ToLookup(item => item.Area!.Value, item => item.Pin);
-        pinsByArea = Districts.Keys.ToDictionary(area => area, area => assigned[area].ToArray());
+        pinsByArea = AssignPins(pins, Districts, legacy: true);
+        outskirtsPins = AssignPins(pins, Outskirts, legacy: false);
     }
 
-    private static RouteArea? NearestArea(Point point)
+    private static Dictionary<RouteArea, ChestPin[]> AssignPins(IReadOnlyList<ChestPin> pins,
+        Dictionary<RouteArea, RouteDistrict> districts, bool legacy)
     {
-        // The restaurant and the surrounding bay share a map label cluster.
-        // Keep Baratie's immediate piers separate from the rest of the bay.
-        if ((point - Districts[RouteArea.Baratie].Center).Length <= 3) return RouteArea.Baratie;
-        var nearest = Districts.Where(pair => pair.Key != RouteArea.Baratie && (pair.Value.Center - point).Length <= pair.Value.Radius)
-            .OrderBy(pair => (pair.Value.Center - point).LengthSquared).Select(pair => (RouteArea?)pair.Key).FirstOrDefault();
-        return nearest;
+        RouteArea? Closest(Point point)
+        {
+            if (legacy && (point - Districts[RouteArea.Baratie].Center).Length <= 3) return RouteArea.Baratie;
+            return districts.Where(pair => (!legacy || pair.Key != RouteArea.Baratie) &&
+                    (pair.Value.Center - point).Length <= pair.Value.Radius)
+                .OrderBy(pair => (pair.Value.Center - point).LengthSquared).Select(pair => (RouteArea?)pair.Key).FirstOrDefault();
+        }
+
+        var assigned = pins.Where(IsChest).Select(pin => (Pin: pin, Area: Closest(pin.World)))
+            .Where(item => item.Area.HasValue).ToLookup(item => item.Area!.Value, item => item.Pin);
+        return districts.Keys.ToDictionary(area => area, area => assigned[area].ToArray());
     }
 
     public static bool IsChest(ChestPin pin) => pin.Layer is "chests" or "buried_chests" or "rare_chests";
 
     public RoutePlan Plan(RoutePreset preset)
     {
-        var crossings = preset.Areas.Zip(preset.Areas.Skip(1)).Select(pair => Neighbors[pair.First].Single(edge => edge.To == pair.Second)).ToArray();
+        bool outskirts = preset.Areas.All(Outskirts.ContainsKey);
+        var districts = outskirts ? Outskirts : Districts;
+        var pins = outskirts ? outskirtsPins : pinsByArea;
+        var neighbors = outskirts ? TrailNeighbors : Neighbors;
+        var crossings = preset.Areas.Zip(preset.Areas.Skip(1)).Select(pair => neighbors[pair.First].Single(edge => edge.To == pair.Second)).ToArray();
         var stages = preset.Areas.Select((area, index) =>
         {
-            var district = Districts[area];
+            var district = districts[area];
             var enter = index == 0 ? district.Center : crossings[index - 1].Via.Last();
             var exit = index >= crossings.Length ? (Point?)null : crossings[index].Via.First();
-            return new RouteStage(district, district.Search, OrderPins(pinsByArea[area], enter, exit));
+            return new RouteStage(district, district.Search, OrderPins(pins[area], enter, exit));
         }).ToArray();
-        return new(preset.Name, preset.Summary, preset.Areas, stages, crossings);
+        return new(preset.Name, preset.Areas, stages, crossings);
     }
 
     public RoutePlan? Open(SavedRoute saved)
@@ -151,57 +143,13 @@ internal sealed class ChestRoutes
         var areas = new List<RouteArea>();
         foreach (string value in saved.Areas)
         {
-            if (!Enum.TryParse(value, out RouteArea area) || !Districts.ContainsKey(area) || areas.Contains(area)) return null;
-            if (areas.Count > 0 && !Neighbors[areas[^1]].Any(edge => edge.To == area)) return null;
+            if (!Enum.TryParse(value, out RouteArea area) || areas.Contains(area)) return null;
             areas.Add(area);
         }
-        return areas.Count < 3 ? null : Plan(new(saved.Name, "", areas.ToArray()));
-    }
-
-    public RoutePlan Generate(RouteArea start, int goal, bool avoidWater)
-    {
-        const int maxStages = 9;
-        var path = new List<RouteArea> { start };
-        var best = path.ToArray();
-        int bestCount = 0;
-        double bestCost = double.PositiveInfinity;
-
-        void Visit(RouteArea area, int count, double distance)
-        {
-            // Compare routes that reach the target by travel cost. If the target
-            // is out of reach, choose the route with the most spawn locations.
-            if (path.Count >= 3)
-            {
-                int progress = Math.Min(count, goal);
-                double cost = distance + Math.Max(0, count - goal) * 0.25;
-                if (progress > bestCount || (progress == bestCount && cost < bestCost))
-                {
-                    best = path.ToArray();
-                    bestCount = progress;
-                    bestCost = cost;
-                }
-                if (count >= goal) return;
-            }
-            if (path.Count == maxStages || distance >= bestCost && bestCount >= goal) return;
-            foreach (var edge in Neighbors[area])
-            {
-                if (path.Contains(edge.To)) continue;
-                path.Add(edge.To);
-                Visit(edge.To, count + pinsByArea[edge.To].Length, distance + TravelCost(edge, avoidWater));
-                path.RemoveAt(path.Count - 1);
-            }
-        }
-
-        Visit(start, pinsByArea[start].Length, 0);
-        string summary = bestCount < goal ? $"На этом маршруте меньше {goal} возможных сундуков." : "";
-        return Plan(new("Маршрут на " + goal + " сундуков", summary, best));
-    }
-
-    private static double TravelCost(RouteCrossing edge, bool avoidWater)
-    {
-        var points = edge.Via.Prepend(Districts[edge.From].Center).Append(Districts[edge.To].Center).ToArray();
-        double distance = points.Zip(points.Skip(1)).Sum(pair => (pair.First - pair.Second).Length);
-        return distance + (edge.Water ? (avoidWater ? 1000 : 12) : 0);
+        var neighbors = areas.All(Outskirts.ContainsKey) ? TrailNeighbors : Neighbors;
+        if (areas.Count < 3 || areas.Any(area => !neighbors.ContainsKey(area)) ||
+            areas.Zip(areas.Skip(1)).Any(pair => !neighbors[pair.First].Any(edge => edge.To == pair.Second))) return null;
+        return Plan(new(saved.Name, areas.ToArray()));
     }
 
     private static ChestPin[] OrderPins(ChestPin[] pins, Point enter, Point? exit)

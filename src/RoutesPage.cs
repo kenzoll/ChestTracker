@@ -6,11 +6,6 @@ namespace ChestTracker;
 
 public partial class MainWindow
 {
-    private sealed record StartChoice(RouteArea Area, string Name);
-    private sealed record GoalChoice(int Count)
-    {
-        public string Label => $"{Count} сундуков";
-    }
     private sealed record RouteStopChoice(int Index, string Heading, string Instruction);
     private RoutePlan? displayedRoute;
     private SavedRoute? displayedSaved;
@@ -27,11 +22,6 @@ public partial class MainWindow
         RouteMap.EnsureLoaded();
         if (routePlanner != null) return;
         routePlanner = new ChestRoutes(RouteMap.MapPins);
-        var starts = ChestRoutes.Starts.Select(start => new StartChoice(start.Area, start.Name)).OrderBy(start => start.Name).ToArray();
-        RouteStartChoice.ItemsSource = starts;
-        RouteStartChoice.SelectedItem = starts.First(start => start.Area == RouteArea.Lantern);
-        RouteLengthChoice.ItemsSource = new[] { 60, 100, 150, 200, 250 }.Select(count => new GoalChoice(count)).ToArray();
-        RouteLengthChoice.SelectedIndex = 1;
         RouteGuideList.ItemsSource = ChestRoutes.Guides;
         RouteMap.RouteStopClicked += index => RouteStopList.SelectedIndex = index;
         RefreshSavedRoutes();
@@ -47,11 +37,10 @@ public partial class MainWindow
 
     private void GenerateRoute(object sender, RoutedEventArgs e)
     {
-        if (routePlanner == null || RouteStartChoice.SelectedItem is not StartChoice start ||
-            RouteLengthChoice.SelectedItem is not GoalChoice goal) return;
+        if (routePlanner == null) return;
         RouteGuideList.SelectedIndex = -1;
         SavedRouteList.SelectedIndex = -1;
-        DisplayRoute(routePlanner.Generate(start.Area, goal.Count, AvoidRouteWater.IsChecked == true), canSave: true);
+        DisplayRoute(routePlanner.Generate(), canSave: true);
     }
 
     private void DisplayRoute(RoutePlan plan, bool canSave = false, SavedRoute? saved = null)
@@ -60,26 +49,12 @@ public partial class MainWindow
         displayedSaved = saved;
         RouteHeading.Text = plan.Name;
         RouteTotal.Text = $"До {plan.Count} сундуков";
-        int water = plan.Crossings.Count(edge => edge.Water);
-        RouteOverview.Text = $"Районов · {plan.Stages.Length}     Переправ · {water}" +
-            (string.IsNullOrWhiteSpace(plan.Summary) ? "" : "\n" + plan.Summary);
-        RouteLegend.Children.Clear();
-        foreach (var layer in ChestMap.AvailableLayers.Take(3))
-        {
-            int count = plan.Stages.Sum(stage => stage.Pins.Count(pin => pin.Layer == layer.Id));
-            if (count == 0) continue;
-            RouteLegend.Children.Add(new TextBlock
-            {
-                Text = $"●  {layer.Label}  {count}", Foreground = new SolidColorBrush(layer.Color), FontSize = 12,
-                Margin = new Thickness(0, 0, 14, 0)
-            });
-        }
         RouteActions.Visibility = canSave || saved != null ? Visibility.Visible : Visibility.Collapsed;
         SaveRouteButton.Visibility = canSave ? Visibility.Visible : Visibility.Collapsed;
         RenameRouteButton.Visibility = DeleteRouteButton.Visibility = saved != null ? Visibility.Visible : Visibility.Collapsed;
         RouteStopList.ItemsSource = plan.Stages.Select((stage, i) => new RouteStopChoice(i,
             $"{i + 1:00}  {stage.District.Name} · до {stage.Pins.Length}",
-            stage.Instruction + (i < plan.Crossings.Length ? "\n" + plan.Crossings[i].Note : ""))).ToArray();
+            stage.Instruction + (i < plan.Crossings.Length && plan.Crossings[i].Note.Length > 0 ? "\n" + plan.Crossings[i].Note : ""))).ToArray();
         RouteMap.SetRoute(plan);
     }
 

@@ -367,40 +367,37 @@ public static class SelfTests
             store.State.Baselines["someone-else"] = 150;
             Require(store.HasInitialBalance && store.Total == 150);
         });
-        Test("Ready and generated routes cover several connected districts without counting a spawn twice", () =>
+        Test("Outskirts presets and seeded random routes use distinct, connected stops with real chests", () =>
         {
             var map = new ChestMap();
             map.EnsureLoaded();
             var planner = new ChestRoutes(map.MapPins);
-            var used = new HashSet<RouteArea>();
-            foreach (var guide in ChestRoutes.Guides)
+            var seen = new Queue<string>();
+            var starts = new HashSet<RouteArea>();
+            var random = new Random(62);
+            var plans = ChestRoutes.Guides.Select(planner.Plan)
+                .Concat(Enumerable.Range(0, 65).Select(_ => planner.Generate(random)));
+            foreach (var plan in plans)
             {
-                var plan = planner.Plan(guide);
                 var pins = plan.Stages.SelectMany(stage => stage.Pins).ToArray();
-                used.UnionWith(plan.Areas);
-                Require(plan.Stages.Length >= 3 && plan.Crossings.Length == plan.Stages.Length - 1);
-                Require(pins.Length >= 55 && plan.Stages.All(stage => stage.Pins.Length > 0));
-                Require(pins.Length == pins.Select(pin => pin.Id).Distinct().Count());
-                Require(pins.All(ChestRoutes.IsChest));
+                Require(planner.IsOutskirtsPlan(plan) && plan.Stages.Length is >= 3 and <= 5);
+                Require(plan.Stages.All(stage => stage.Pins.Length > 0) && plan.Count >= 17, plan.Name);
+                Require(plan.Crossings.Length == plan.Stages.Length - 1);
+                Require(pins.Length == pins.Select(pin => pin.Id).Distinct().Count() && pins.All(ChestRoutes.IsChest));
+                string key = string.Join(',', plan.Areas);
+                Require(!seen.Contains(key) && !seen.Contains(string.Join(',', plan.Areas.Reverse())));
+                seen.Enqueue(key);
+                if (seen.Count > 12) seen.Dequeue();
+                starts.Add(plan.Areas[0]);
             }
-            Require(ChestRoutes.Guides.Length == 14 && used.Count == ChestRoutes.Starts.Count());
-            foreach (var (area, name) in ChestRoutes.Starts)
-            {
-                Require(name.Any(c => c is >= 'А' and <= 'я'));
-                var generated = planner.Generate(area, 150, avoidWater: true);
-                Require(generated.Count >= 150 && generated.Areas[0] == area);
-                Require(generated.Stages.Length >= 3 && generated.Areas.Length == generated.Areas.Distinct().Count());
-            }
-            var shortRoute = planner.Generate(RouteArea.Lantern, 60, avoidWater: true);
-            var longRoute = planner.Generate(RouteArea.Lantern, 250, avoidWater: true);
-            Require(longRoute.Count >= 250 && longRoute.Count > shortRoute.Count && longRoute.Stages.Length > shortRoute.Stages.Length);
+            Require(starts.Count >= 12);
         });
-        Test("Custom route survives restart and reopens with the same chest order, then can be renamed and removed", () =>
+        Test("New and old custom routes reopen with the same stop order", () =>
         {
             var map = new ChestMap();
             map.EnsureLoaded();
             var planner = new ChestRoutes(map.MapPins);
-            var plan = planner.Generate(RouteArea.Chest, 200, avoidWater: true);
+            var plan = planner.Generate(new Random(62));
             var store = new TrackerStore(Path.Combine(root, "saved-routes"));
             var route = new SavedRoute("route-1", "Мой пробег", plan.Areas.Select(area => area.ToString()).ToArray());
             store.StoreRoute(route);
@@ -410,11 +407,34 @@ public static class SelfTests
             Require(restored != null && restored.Name == "Мой пробег" && restored.Areas.SequenceEqual(plan.Areas));
             Require(restored!.Stages.SelectMany(stage => stage.Pins).SequenceEqual(plan.Stages.SelectMany(stage => stage.Pins)));
             Require(planner.Open(saved with { Areas = ["Fort", "Port", "Cavern"] }) == null);
+            Require(planner.Open(saved with { Areas = ["Arlong", "Lantern", "Battlefield"] })?.Count > 0);
             store.StoreRoute(saved with { Name = "Маршрут с новым именем" });
             store = new TrackerStore(store.Folder);
             Require(store.State.SavedRoutes.Single().Name == "Маршрут с новым именем");
             store.RemoveRoute(store.State.SavedRoutes.Single());
             Require(new TrackerStore(store.Folder).State.SavedRoutes.Count == 0);
+        });
+        Test("Manual subtraction corrects the original day and baseline while preserving match and profile counts", () =>
+        {
+            var store = new TrackerStore(Path.Combine(root, "subtract"));
+            store.SetInitialBalance(10);
+            var day = new DateTime(2026, 11, 12, 12, 0, 0, DateTimeKind.Utc);
+            store.Add(new MatchEntry { Id = "one", Normal = 6, Rare = 2, TimeUtc = day });
+            store.AddManualChests(4, day);
+            store.AddManualChests(6, day.AddDays(1));
+            store.State.ActiveProfile = "other";
+            store.AddManualChests(12, day);
+            store.State.ActiveProfile = "";
+            store.SubtractManualChests(7);
+            Require(store.Total == 21 && store.HistoryDays().Single().Total == 11);
+            store.SubtractManualChests(13);
+            store = new TrackerStore(store.Folder);
+            Require(store.Total == 8 && store.HasInitialBalance && store.RemovableChests == 0 && store.Current.Single().Total == 8);
+            bool rejected = false;
+            try { store.SubtractManualChests(1); } catch (ArgumentOutOfRangeException) { rejected = true; }
+            Require(rejected && store.Total == 8);
+            store.State.ActiveProfile = "other";
+            Require(store.ManualTotal == 12);
         });
         Test("Spirit reminder waits fifteen seconds and resets for a new match", () =>
         {

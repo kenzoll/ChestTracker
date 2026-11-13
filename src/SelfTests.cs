@@ -150,9 +150,9 @@ public static class SelfTests
             Require(doc.RootElement.GetProperty("season").GetInt32()==43);
             Require(!doc.RootElement.TryGetProperty("sprite_chests",out _));
             var map=new ChestMap(); map.Measure(new Size(900,470));map.Arrange(new Rect(0,0,900,470)); map.EnsureLoaded();
-            Require(map.NormalCount==865 && map.RareCount==39 && map.FilteredCount==973);
-            map.Filters(false,true); Require(map.FilteredCount==39);
-            map.Filters(true,false); Require(map.FilteredCount==865);
+            Require(map.NormalCount==907 && map.RareCount==37 && map.FilteredCount==1006);
+            map.Filters(false,true); Require(map.FilteredCount==37);
+            map.Filters(true,false); Require(map.FilteredCount==907);
             map.Filters(false,false); Require(map.FilteredCount==0);
             Require(map.IsImageLoaded); map.ReleaseImage(); Require(!map.IsImageLoaded);
         });
@@ -176,12 +176,12 @@ public static class SelfTests
         });
         Test("Optional map layers start disabled and can be combined", () =>
         {
-            var map=new ChestMap();map.EnsureLoaded();Require(map.FilteredCount==973);
+            var map=new ChestMap();map.EnsureLoaded();Require(map.FilteredCount==1006);
             Require(ChestMap.AvailableLayers.Count(l=>map.IsLayerEnabled(l.Id))==3);
             Require(ChestMap.AvailableLayers.Take(3).Select(l=>l.Id).SequenceEqual(new[]{"chests","buried_chests","rare_chests"}));
-            map.SetLayer("sprite_chests",true);Require(map.FilteredCount==1018);
-            map.SetLayer("ammo_boxes",true);Require(map.FilteredCount==1828);
-            map.SetLayer("chests",false);Require(map.FilteredCount==963);
+            map.SetLayer("sprite_chests",true);Require(map.FilteredCount==1051);
+            map.SetLayer("ammo_boxes",true);Require(map.FilteredCount==1918);
+            map.SetLayer("chests",false);Require(map.FilteredCount==1011);
             map.ReleaseImage();
         });
         Test("Reminder queues before replay analysis and persists without duplicates", () =>
@@ -456,9 +456,44 @@ public static class SelfTests
             using var reader=new StreamReader(StoragePaths.Asset("logo.svg"));Require(reader.ReadToEnd().Contains(Brand.ChestPath));
             Require(Brand.Logo.IsFrozen);using var icon=StoragePaths.Asset("app.ico");using var r=new BinaryReader(icon);Require(r.ReadUInt16()==0&&r.ReadUInt16()==1&&r.ReadUInt16()==1);
         });
+        Test("Generated route history restores the same plan and starts a new branch after going back", () =>
+        {
+            var map = new ChestMap();
+            map.EnsureLoaded();
+            var planner = new ChestRoutes(map.MapPins);
+            var random = new Random(4310);
+            var first = planner.Generate(random);
+            var second = planner.Generate(random);
+            var history = new GeneratedRouteHistory();
+            Require(history.Current == null && !history.HasPrevious && !history.HasNext);
+            history.Add(first);
+            history.Add(second);
+            history.Move(-1);
+            Require(ReferenceEquals(history.Current, first) && history.HasNext && !history.HasPrevious);
+            history.Move(1);
+            Require(ReferenceEquals(history.Current, second) && history.HasPrevious && !history.HasNext);
+            history.Move(-1);
+            var third = planner.Generate(random);
+            history.Add(third);
+            Require(ReferenceEquals(history.Current, third) && history.HasPrevious && !history.HasNext);
+        });
+        Test("The packaged Fortnite 43.10 map has the updated chest layers and location names", () =>
+        {
+            var map = new ChestMap();
+            map.EnsureLoaded();
+            Require(map.IsImageLoaded && map.NormalCount == 907 && map.RareCount == 37);
+            Require(map.MapPins.Count(pin => pin.Layer == "buried_chests") == 62);
+            using var stream = StoragePaths.Asset("layers.json");
+            using var json = JsonDocument.Parse(stream);
+            Require(json.RootElement.GetProperty("revision").GetString() == "43.10");
+            Require(json.RootElement.GetProperty("labels").EnumerateArray().Any(label => label.GetProperty("name").GetString() == "BUGGY'S BEACHHEAD"));
+            var planner = new ChestRoutes(map.MapPins);
+            var coast = planner.Plan(ChestRoutes.Guides.Single(guide => guide.Name == "Северо-восточный берег"));
+            Require(coast.Stages.Single(stage => stage.District.Name == "Кольцевой пляж").Pins.Length == 11);
+        });
         Test("Single executable contains required resources and notices", () =>
         {
-            foreach(string name in new[]{"map.png","chests.json","Notices.txt","app.ico"}) { using var stream=StoragePaths.Asset(name);Require(stream.Length>0); }
+            foreach(string name in new[]{"map.jpg","layers.json","Notices.txt","app.ico"}) { using var stream=StoragePaths.Asset(name);Require(stream.Length>0); }
             Require(StoragePaths.DataDirectory.StartsWith(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)));
         });
         System.IO.File.WriteAllText(resultPath, string.Join(Environment.NewLine, report) + $"\n\n{report.Count(l=>l.StartsWith("PASS"))} passed, {failures.Count} failed\n");

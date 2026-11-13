@@ -224,6 +224,11 @@
               <Border Style="{StaticResource Panel}" Padding="16" Margin="0,0,0,12">
                 <StackPanel>
                   <Button Content="Построить свой маршрут" Style="{StaticResource Primary}" Click="GenerateRoute"/>
+                  <Grid Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="6"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                    <Button x:Name="PreviousRouteButton" Content="← Назад" Click="PreviousGeneratedRoute" IsEnabled="False" Padding="8,7"/>
+                    <Button x:Name="NextRouteButton" Grid.Column="2" Content="Вперёд →" Click="NextGeneratedRoute" IsEnabled="False" Padding="8,7"/>
+                  </Grid>
                 </StackPanel>
               </Border>
               <Border Style="{StaticResource Panel}" Padding="12">

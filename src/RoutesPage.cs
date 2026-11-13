@@ -10,6 +10,7 @@ public partial class MainWindow
     private RoutePlan? displayedRoute;
     private SavedRoute? displayedSaved;
     private ChestRoutes? routePlanner;
+    private readonly GeneratedRouteHistory generatedRoutes = new();
 
     private void ShowRoutes(object sender, RoutedEventArgs e)
     {
@@ -38,14 +39,35 @@ public partial class MainWindow
     private void GenerateRoute(object sender, RoutedEventArgs e)
     {
         if (routePlanner == null) return;
+        generatedRoutes.Add(routePlanner.Generate());
+        ShowGeneratedRoute();
+    }
+
+    private void PreviousGeneratedRoute(object sender, RoutedEventArgs e)
+    {
+        if (ReferenceEquals(displayedRoute, generatedRoutes.Current)) generatedRoutes.Move(-1);
+        ShowGeneratedRoute();
+    }
+
+    private void NextGeneratedRoute(object sender, RoutedEventArgs e)
+    {
+        generatedRoutes.Move(1);
+        ShowGeneratedRoute();
+    }
+
+    private void ShowGeneratedRoute()
+    {
+        if (generatedRoutes.Current is not RoutePlan plan) return;
         RouteGuideList.SelectedIndex = -1;
         SavedRouteList.SelectedIndex = -1;
-        DisplayRoute(routePlanner.Generate(), canSave: true);
+        DisplayRoute(plan, canSave: true);
     }
 
     private void DisplayRoute(RoutePlan plan, bool canSave = false, SavedRoute? saved = null)
     {
         displayedRoute = plan;
+        PreviousRouteButton.IsEnabled = generatedRoutes.HasPrevious || (!canSave && generatedRoutes.Current != null);
+        NextRouteButton.IsEnabled = generatedRoutes.HasNext;
         displayedSaved = saved;
         RouteHeading.Text = plan.Name;
         RouteTotal.Text = $"До {plan.Count} сундуков";

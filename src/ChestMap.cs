@@ -70,7 +70,7 @@ public sealed partial class ChestMap : FrameworkElement
 
         if(image == null)
         {
-            using var stream = StoragePaths.Asset("map.png");
+            using var stream = StoragePaths.Asset("map.jpg");
             image = new BitmapImage(); image.BeginInit(); image.CacheOption = BitmapCacheOption.OnLoad;
             image.DecodePixelWidth = 2048; image.StreamSource = stream; image.EndInit(); image.Freeze();
         }

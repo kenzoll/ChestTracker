@@ -93,7 +93,13 @@ internal sealed partial class ChestRoutes
         ["BARATIE"] = RouteArea.Baratie, ["HENRY"] = RouteArea.Henry
     };
 
-    public static string Label(string name) => MapLabels.TryGetValue(name, out var area) ? Districts[area].Name : name;
+    public static string Label(string name) => name switch
+    {
+        "LIL' UZI'S STRONGHOLD" => "Крепость Lil Uzi",
+        "BUGGY'S BEACHHEAD" => "Плацдарм Багги",
+        "NAMI'S TANGERINE GROVE" => "Мандариновая роща Нами",
+        _ => MapLabels.TryGetValue(name, out var area) ? Districts[area].Name : name
+    };
     private readonly Dictionary<RouteArea, ChestPin[]> pinsByArea;
     private readonly Dictionary<RouteArea, ChestPin[]> outskirtsPins;
 

@@ -20,6 +20,12 @@ public sealed partial class ChestMap
         FitRoute();
     }
 
+    internal void FitIsland()
+    {
+        activeStop = -1;
+        FitPoints([new(39, 45), new(230, 237)], 0.8, 5.5);
+    }
+
     internal void FitRoute()
     {
         activeStop = -1;
@@ -93,9 +99,11 @@ public sealed partial class ChestMap
                 drawing.DrawEllipse(RoutePinColors.Value[pin.Layer], pinOutline, ToScreen(pin.World), focus ? 4 : 2.6, focus ? 4 : 2.6);
         }
 
-        for (int i = 0; i < plan.Stages.Length; i++)
+        var markers = plan.Stages.Select(stage => ToScreen(stage.District.Center)).ToArray();
+        if (activeStop < 0) DrawPlaceLabels(drawing, markers);
+        for (int i = 0; i < markers.Length; i++)
         {
-            var stop = ToScreen(plan.Stages[i].District.Center);
+            var stop = markers[i];
             bool focus = i == activeStop;
             drawing.DrawEllipse(focus ? Red : Dark, markerOutline, stop, 11, 11);
             DrawRouteLabel(drawing, (i + 1).ToString(CultureInfo.InvariantCulture), stop, 11);

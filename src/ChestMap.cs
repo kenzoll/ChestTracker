@@ -100,14 +100,7 @@ public sealed partial class ChestMap : FrameworkElement
             DrawRoute(drawing);
             return;
         }
-        foreach(var place in places)
-        {
-            var at=ToScreen(place.Position);if(at.X<0||at.X>ActualWidth||at.Y<0||at.Y>ActualHeight)continue;
-            var label=new FormattedText(ChestRoutes.Label(place.Name),System.Globalization.CultureInfo.InvariantCulture,FlowDirection.LeftToRight,
-                new Typeface("Segoe UI Semibold"),zoom>2?11:9,Brushes.White,VisualTreeHelper.GetDpi(this).PixelsPerDip);
-            var pos=new Point(at.X-label.Width/2,at.Y-19);
-            drawing.DrawRoundedRectangle(new SolidColorBrush(Color.FromArgb(165,10,13,19)),null,new Rect(pos.X-4,pos.Y-2,label.Width+8,label.Height+4),3,3);drawing.DrawText(label,pos);
-        }
+        DrawPlaceLabels(drawing);
         var bins=new Dictionary<(int,int),List<ChestPin>>();
         double cell=zoom<2?52:zoom<4?36:25;
         foreach(var pin in pins)
@@ -158,6 +151,35 @@ public sealed partial class ChestMap : FrameworkElement
             var p=ToScreen(selected.World); drawing.DrawEllipse(null,new Pen(Brushes.White,2),p,13,13);
         }
     }
+    private void DrawPlaceLabels(DrawingContext drawing, IReadOnlyList<Point>? markers = null)
+    {
+        var visible = new Rect(RenderSize);
+        var occupied = new List<Rect>();
+        foreach (var place in places)
+        {
+            var at = ToScreen(place.Position);
+            if (!visible.Contains(at)) continue;
+            var label = new FormattedText(ChestRoutes.Label(place.Name), System.Globalization.CultureInfo.InvariantCulture,
+                FlowDirection.LeftToRight, new Typeface("Segoe UI Semibold"), zoom > 2 ? 11 : 10,
+                Brushes.White, VisualTreeHelper.GetDpi(this).PixelsPerDip);
+            var position = new Point(at.X - label.Width / 2, at.Y - 19);
+            var bounds = new Rect(position.X - 4, position.Y - 2, label.Width + 8, label.Height + 4);
+            if (!visible.Contains(bounds) || occupied.Any(other => other.IntersectsWith(bounds))) continue;
+            if (markers != null && markers.Any(marker => bounds.IntersectsWith(new Rect(marker.X - 13, marker.Y - 13, 26, 26)))) continue;
+            occupied.Add(bounds);
+            drawing.DrawRoundedRectangle(LabelBackground, null, bounds, 3, 3);
+            drawing.DrawText(label, position);
+        }
+    }
+
+    private static readonly Brush LabelBackground = CreateLabelBackground();
+    private static Brush CreateLabelBackground()
+    {
+        var brush = new SolidColorBrush(Color.FromArgb(190, 10, 13, 19));
+        brush.Freeze();
+        return brush;
+    }
+
     protected override void OnMouseWheel(MouseWheelEventArgs e) { ZoomAt(e.GetPosition(this),e.Delta>0?1.24:1/1.24); e.Handled=true; }
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {

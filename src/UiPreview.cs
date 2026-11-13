@@ -54,6 +54,21 @@ public partial class MainWindow
         var area=(FrameworkElement)details.Content;var picture=new RenderTargetBitmap((int)details.ActualWidth,(int)details.ActualHeight,96,96,PixelFormats.Pbgra32);picture.Render(area);
         var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(picture));using(var file=File.Create(Path.Combine(directory,"match-details.png")))encoder.Save(file);
         details.Close();
+        var route = window.displayedRoute ?? throw new InvalidOperationException("Preview route was not loaded.");
+        var mapWindow = new RouteMapWindow(window, route) { Opacity = 0, ShowActivated = false };
+        mapWindow.Show();
+        mapWindow.UpdateLayout();
+        var viewport = mapWindow.Map;
+        if (Math.Abs(viewport.ActualWidth - viewport.ActualHeight) > 1 ||
+            !new Rect(viewport.RenderSize).Contains(viewport.ToScreen(new Point(39, 45))) ||
+            !new Rect(viewport.RenderSize).Contains(viewport.ToScreen(new Point(230, 237))))
+            throw new InvalidOperationException("The route window does not fit the full island.");
+        var mapImage = new RenderTargetBitmap((int)viewport.ActualWidth, (int)viewport.ActualHeight, 96, 96, PixelFormats.Pbgra32);
+        mapImage.Render((FrameworkElement)mapWindow.Content);
+        var mapPng = new PngBitmapEncoder();
+        mapPng.Frames.Add(BitmapFrame.Create(mapImage));
+        using (var file = File.Create(Path.Combine(directory, "route-island.png"))) mapPng.Save(file);
+        mapWindow.Close();
         bool reminderClosed = RenderReminder(directory);
         window.Close();app.Shutdown();return reminderClosed ? 0 : 1;
     }

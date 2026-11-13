@@ -96,6 +96,11 @@ public partial class MainWindow
         RouteMap.FitRoute();
     }
 
+    private void OpenRouteMap(object sender, RoutedEventArgs e)
+    {
+        if (displayedRoute is RoutePlan plan) new RouteMapWindow(this, plan).ShowDialog();
+    }
+
     private void ShowReadyRoutes(object sender, RoutedEventArgs e) => SetRouteLibrary(saved: false);
     private void ShowSavedRoutes(object sender, RoutedEventArgs e) => SetRouteLibrary(saved: true);
 

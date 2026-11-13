@@ -7,7 +7,11 @@ internal enum RouteArea
     Resort, Chest, Lagoon, Fort, Lantern, Arlong, Mill, Logue, Cavern, Port, Bay, Rocky, Boat, Battlefield, Skull, Baratie, Henry, NorthIslet,
     NorthHuts, EastSteps, Crab, EastBoat, RidgeCamp, EastTower, RiverMouth, SouthCliff, Riverside, NorthWatch,
     SandCamp, NorthShore, Sandbar, PinkIslet, WestDocks, WestRoad, WestShoal, WestPoint, SouthRoad, RingIslet,
-    SouthIslets, SouthPier, EastShoal, SouthBeach, FarBeach
+    SouthIslets, SouthPier, EastShoal, SouthBeach, FarBeach,
+    NorthCliffs, CrabTip, RockCove, RockRidge, RockPoint, EastFarm, EastBluff, SouthDocks,
+    HenryShore, MillCreek, WestChannel, WestRidge, WestBluff, ForestTrail, ForestLookout,
+    StoneFrogs, BridgeHuts, RiverUpper, RiverMid, RiverLookout, DuneCamp, BuggyOutskirts, ResortEast, ResortNorth, ResortWest,
+    WestCrossing, LogueOutskirts, WestSlope
 }
 
 internal sealed record RouteDistrict(string Name, Point Center, double Radius, string Search);

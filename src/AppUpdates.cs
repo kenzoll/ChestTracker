@@ -21,6 +21,7 @@ internal sealed class AppUpdates : IDisposable
     private UpdateRelease? ready;
     private string? candidate;
     private bool busy;
+    public Version? AvailableVersion { get; private set; }
     public bool IsReady=>ready!=null&&candidate!=null;
     public string Status { get; private set; }="Проверка обновлений";
     public event Action? Changed;
@@ -57,6 +58,7 @@ internal sealed class AppUpdates : IDisposable
             throw new InvalidDataException("Адрес обновления не принадлежит выбранному репозиторию");
         return new(version,uri,size,digest[7..].ToUpperInvariant());
     }
+    internal static string DisplayVersion(Version version) => version.Build > 0 ? version.ToString(3) : version.ToString(2);
     private void SetStatus(string text){Status=text;Changed?.Invoke();}
     public async Task CheckAsync()
     {
@@ -73,8 +75,9 @@ internal sealed class AppUpdates : IDisposable
             if(json.Length>1048576)throw new InvalidDataException("Слишком большой ответ сервера обновлений");
             var release=ParseRelease(json,Repository,Current);
             if(release==null){SetStatus("Установлена последняя версия");return;}
+            AvailableVersion = release.Version;
             Directory.CreateDirectory(folder);partial=Path.Combine(folder,"download.part");
-            SetStatus("Загружаю версию "+release.Version.ToString(3)+"…");
+            SetStatus("Загружаю версию "+DisplayVersion(release.Version)+"…");
             using var download=await client.GetAsync(release.Download,HttpCompletionOption.ResponseHeadersRead,cancellation.Token);download.EnsureSuccessStatusCode();
             if(download.Content.Headers.ContentLength is long length&&length!=release.Size)throw new InvalidDataException("Размер загрузки не совпадает с релизом");
             await using(var input=await download.Content.ReadAsStreamAsync(cancellation.Token))
@@ -92,11 +95,11 @@ internal sealed class AppUpdates : IDisposable
             }
             await Task.Run(()=>VerifyFile(partial,release.Sha256),cancellation.Token);
             candidate=Path.Combine(folder,"ChestTracker-new.exe");File.Move(partial,candidate,true);partial=null;ready=release;
-            SetStatus("Версия "+release.Version.ToString(3)+" готова · можно обновить приложение");
+            SetStatus("Версия "+DisplayVersion(release.Version)+" готова · можно обновить приложение");
         }
         catch(OperationCanceledException){if(!cancellation.IsCancellationRequested)SetStatus("Сервер не ответил. Попробуем позже.");}
         catch(Exception){SetStatus("Не удалось загрузить обновление. Текущая версия продолжает работать.");}
-        finally{if(partial!=null)try{File.Delete(partial);}catch{}busy=false;}
+        finally{if(!IsReady && AvailableVersion != null){AvailableVersion = null; Changed?.Invoke();} if(partial!=null)try{File.Delete(partial);}catch{}busy=false;}
     }
     internal static void VerifyFile(string file,string expected)
     {

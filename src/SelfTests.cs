@@ -235,6 +235,8 @@ public static class SelfTests
             Require(AppUpdates.ParseRelease(ReleaseJson(),"example/chest-tracker",new Version(4,1,0,0))!.Version==new Version(5,0,0,0));
             Require(AppUpdates.ParseRelease(ReleaseJson("v4.1.0"),"example/chest-tracker",new Version(4,1,0,0))==null);
             Require(AppUpdates.ParseRelease(ReleaseJson(preview:true),"example/chest-tracker",new Version(4,1,0,0))==null);
+            Require(AppUpdates.DisplayVersion(new Version(6, 3, 0, 0)) == "6.3");
+            Require(AppUpdates.DisplayVersion(new Version(6, 3, 1, 0)) == "6.3.1");
         });
         Test("Updater rejects missing hashes and download addresses outside the release repository", () =>
         {
@@ -374,16 +376,23 @@ public static class SelfTests
             var planner = new ChestRoutes(map.MapPins);
             var seen = new Queue<string>();
             var starts = new HashSet<RouteArea>();
+            RouteArea[]? previous = null;
             var random = new Random(62);
             var plans = ChestRoutes.Guides.Select(planner.Plan)
                 .Concat(Enumerable.Range(0, 65).Select(_ => planner.Generate(random)));
-            foreach (var plan in plans)
+            foreach (var (plan, index) in plans.Select((plan, index) => (plan, index)))
             {
                 var pins = plan.Stages.SelectMany(stage => stage.Pins).ToArray();
-                Require(planner.IsOutskirtsPlan(plan) && plan.Stages.Length is >= 3 and <= 5);
-                Require(plan.Stages.All(stage => stage.Pins.Length > 0) && plan.Count >= 17, plan.Name);
+                Require(plan.Areas.All(ChestRoutes.IsEligibleArea) && plan.Areas.Count(ChestRoutes.IsMajorStop) <= 1 && plan.Stages.Length is >= 4 and <= 9);
+                Require(plan.Stages.All(stage => stage.Pins.Length > 0) && plan.Count >= 40, plan.Name);
                 Require(plan.Crossings.Length == plan.Stages.Length - 1);
                 Require(pins.Length == pins.Select(pin => pin.Id).Distinct().Count() && pins.All(ChestRoutes.IsChest));
+                if (index >= ChestRoutes.Guides.Length)
+                {
+                    if (previous != null)
+                        Require(plan.Areas.Intersect(previous).Count() * 10 <= Math.Min(plan.Areas.Length, previous.Length) * 6, plan.Name);
+                    previous = plan.Areas;
+                }
                 string key = string.Join(',', plan.Areas);
                 Require(!seen.Contains(key) && !seen.Contains(string.Join(',', plan.Areas.Reverse())));
                 seen.Enqueue(key);

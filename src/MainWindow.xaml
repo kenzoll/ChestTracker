@@ -78,7 +78,7 @@
     <Style x:Key="RewardCheck" TargetType="CheckBox"><Setter Property="Cursor" Value="Hand"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="CheckBox"><StackPanel Orientation="Horizontal"><Border x:Name="Box" Background="Transparent" Width="20" Height="20" CornerRadius="6" BorderBrush="#686872" BorderThickness="1" Margin="0,0,10,0"></Border><ContentPresenter VerticalAlignment="Center"/></StackPanel><ControlTemplate.Triggers><Trigger Property="IsChecked" Value="True"><Setter TargetName="Box" Property="Background" Value="White"/><Setter TargetName="Box" Property="BorderBrush" Value="White"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style>
   </Window.Resources>
   <Grid Margin="32,24,32,16" x:Name="RootContent">
-    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
     <Grid Margin="0,0,0,25">
       <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -86,7 +86,7 @@
         <StackPanel><TextBlock Text="CHEST TRACKER" FontSize="23" FontWeight="Bold"/></StackPanel>
       </StackPanel>
       <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
-        <TextBlock Text="6.2" HorizontalAlignment="Right" FontSize="13" Foreground="#FF6675"/>
+        <TextBlock Text="6.3" HorizontalAlignment="Right" FontSize="13" Foreground="#FF6675"/>
       </StackPanel>
     </Grid>
     <Grid Grid.Row="1" Margin="0,0,0,22">
@@ -101,7 +101,19 @@
       </StackPanel>
       <TextBlock x:Name="PlayerLabel" Grid.Column="1" Text="Игрок определится автоматически" Foreground="{StaticResource Muted}" VerticalAlignment="Center" FontSize="12" MaxWidth="170" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
     </Grid>
-    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <Border x:Name="UpdateNotice" Grid.Row="2" Visibility="Collapsed" Background="#201318" BorderBrush="#71313D"
+            BorderThickness="1" CornerRadius="12" Padding="15,10" Margin="0,0,0,14">
+      <Grid>
+        <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <StackPanel VerticalAlignment="Center" Margin="0,0,15,0">
+          <TextBlock x:Name="UpdateNoticeTitle" FontSize="15" FontWeight="SemiBold" AutomationProperties.LiveSetting="Polite"/>
+          <TextBlock x:Name="UpdateNoticeDetail" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,3,0,0"/>
+        </StackPanel>
+        <Button x:Name="ApplyUpdateButton" Grid.Column="1" Content="Обновить" Click="InstallUpdateNow" Style="{StaticResource Primary}" Padding="13,8"/>
+        <Button x:Name="DismissUpdateButton" Grid.Column="2" Content="Закрыть" Click="DismissUpdate" Margin="8,0,0,0" Padding="11,8"/>
+      </Grid>
+    </Border>
+    <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
       <Grid Margin="0,0,4,0">
         <StackPanel x:Name="CounterPage">
           <Border Style="{StaticResource Panel}" Margin="0,0,0,16" Padding="20,18">
@@ -335,16 +347,5 @@
       </Grid>
     </ScrollViewer>
 
-    <Border x:Name="UpdateNotice" Grid.RowSpan="4" Panel.ZIndex="50" Visibility="Collapsed" HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="510"
-            Background="#171216" BorderBrush="#A53246" BorderThickness="1" CornerRadius="16" Padding="23" Margin="16">
-      <StackPanel>
-        <TextBlock Text="Обновление готово" FontSize="21" FontWeight="SemiBold"/>
-        <TextBlock Text="Новая версия уже скачана. Приложение обновится и запустится снова, история и настройки сохранятся." Foreground="{StaticResource Muted}" FontSize="13" Margin="0,10,0,18"/>
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-          <Button x:Name="DismissUpdateButton" Content="Закрыть" Click="DismissUpdate" Margin="0,0,10,0" ToolTip="Отложить до закрытия приложения"/>
-          <Button Content="Обновить" Click="InstallUpdateNow" Style="{StaticResource Primary}"/>
-        </StackPanel>
-      </StackPanel>
-    </Border>
   </Grid>
 </Window>

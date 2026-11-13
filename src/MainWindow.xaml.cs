@@ -24,7 +24,7 @@ public partial class MainWindow : Window
     private AppUpdates? updates;
     private bool closing;
     private bool restartForUpdate;
-    private bool updateNoticeDismissed;
+    private Version? dismissedUpdateVersion;
     private DateTime nextUpdateCheck=DateTime.MinValue;
     private readonly DispatcherTimer updateTimer=new(){Interval=TimeSpan.FromMinutes(1)};
     private bool refreshing;
@@ -55,7 +55,7 @@ public partial class MainWindow : Window
         if(!demo&&AppUpdates.Configured)
         {
             updates=new AppUpdates(store.Folder);updates.Changed+=RefreshUpdateNotice;
-            updateTimer.Tick+=async (_,_)=>await CheckUpdatesWhenIdle();
+            updateTimer.Tick+=async (_,_)=>await CheckForScheduledUpdate();
         }
     }
     private async void WindowLoaded(object sender, RoutedEventArgs e)
@@ -84,13 +84,13 @@ public partial class MainWindow : Window
     private async Task BeginUpdates()
     {
         if(updates==null)return;
-        await Task.Delay(15000);if(closing)return;
-        updateTimer.Start();await CheckUpdatesWhenIdle();
+        await Task.Delay(3000);if(closing)return;
+        updateTimer.Start();await CheckForScheduledUpdate();
     }
-    private async Task CheckUpdatesWhenIdle()
+    private async Task CheckForScheduledUpdate()
     {
-        if(closing||updates==null||watcher.Busy||watcher.Phase=="live"||DateTime.UtcNow<nextUpdateCheck)return;
-        nextUpdateCheck=DateTime.UtcNow.AddHours(6);await updates.CheckAsync();
+        if(closing||updates==null||updates.IsReady||DateTime.UtcNow<nextUpdateCheck)return;
+        nextUpdateCheck=DateTime.UtcNow.AddMinutes(10);await updates.CheckAsync();
     }
     private async void CheckUpdates(object sender,RoutedEventArgs e)
     {
@@ -102,9 +102,20 @@ public partial class MainWindow : Window
         if(updates==null)return;
         UpdateStatus.Text=updates.Status;
         UpdateCheckButton.Content=updates.IsReady?"Обновить":"Проверить";
-        UpdateNotice.Visibility=updates.IsReady&&!updateNoticeDismissed&&!watcher.Busy&&watcher.Phase!="live"?Visibility.Visible:Visibility.Collapsed;
+        var version = updates.AvailableVersion;
+        UpdateNotice.Visibility = version != null && version != dismissedUpdateVersion ? Visibility.Visible : Visibility.Collapsed;
+        if (version == null) return;
+        bool canInstall = !watcher.Busy && watcher.Phase != "live";
+        UpdateNoticeTitle.Text = $"Доступна версия {AppUpdates.DisplayVersion(version)}";
+        UpdateNoticeDetail.Text = !updates.IsReady ? updates.Status
+            : canInstall ? "Готова к установке" : "Можно установить после матча и обработки повтора";
+        ApplyUpdateButton.IsEnabled = updates.IsReady && canInstall;
     }
-    private void DismissUpdate(object sender,RoutedEventArgs e){updateNoticeDismissed=true;UpdateNotice.Visibility=Visibility.Collapsed;}
+    private void DismissUpdate(object sender, RoutedEventArgs e)
+    {
+        dismissedUpdateVersion = updates?.AvailableVersion;
+        UpdateNotice.Visibility = Visibility.Collapsed;
+    }
     private void InstallUpdateNow(object sender,RoutedEventArgs e)
     {
         if(updates?.IsReady!=true)return;

@@ -14,6 +14,8 @@ public partial class MainWindow
         {
             ShowPage(page,button);
             UpdateNotice.Visibility=name=="update-notice"?Visibility.Visible:Visibility.Collapsed;
+            UpdateNoticeTitle.Text = "Доступна версия 6.4";
+            UpdateNoticeDetail.Text = "Готова к установке";
             if(page==MapPage)MapViewer.EnsureLoaded();
             if(page==RoutesPage)
             {

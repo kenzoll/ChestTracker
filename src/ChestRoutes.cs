@@ -31,7 +31,7 @@ internal sealed partial class ChestRoutes
 {
     private static readonly Dictionary<RouteArea, RouteDistrict> Districts = new()
     {
-        [RouteArea.Resort] = new("Резиновый курорт", new(100.19, 88.97), 14, "Осмотрите корпуса курорта и западные постройки у склона."),
+        [RouteArea.Resort] = new("Вилла Дружбы", new(100.19, 88.97), 14, "Осмотрите корпуса курорта и западные постройки у склона."),
         [RouteArea.Chest] = new("Гигантский сундук", new(93.02, 109.31), 8, "Начните с бугорков на песчаной косе. Обойдите мегасундук по берегу."),
         [RouteArea.Lagoon] = new("Лагуна добычи", new(132.73, 108.57), 13, "Проверьте здания у берега, затем площадки вокруг лагуны."),
         [RouteArea.Fort] = new("Форт Фортуны", new(161.68, 104.25), 13, "Загляните в постройки вдоль склона и у нижнего входа."),
@@ -89,7 +89,7 @@ internal sealed partial class ChestRoutes
 
     private static readonly Dictionary<string, RouteArea> MapLabels = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["RUBBER RESORT"] = RouteArea.Resort, ["THE CHEST"] = RouteArea.Chest, ["LOOT LAGOON"] = RouteArea.Lagoon,
+        ["RUBBER RESORT"] = RouteArea.Resort, ["FRIENDSHIP VILLA"] = RouteArea.Resort, ["THE CHEST"] = RouteArea.Chest, ["LOOT LAGOON"] = RouteArea.Lagoon,
         ["FORTUNE'S FORT"] = RouteArea.Fort, ["LANTERN LANDING"] = RouteArea.Lantern, ["ARLONG PARK"] = RouteArea.Arlong,
         ["WINDMILL VILLAGE"] = RouteArea.Mill, ["LOGUETOWN"] = RouteArea.Logue, ["CURSED CAVERN"] = RouteArea.Cavern,
         ["PLUNDER PORT"] = RouteArea.Port, ["BUSY BAY"] = RouteArea.Bay, ["THE $.$. ROCKY"] = RouteArea.Rocky,

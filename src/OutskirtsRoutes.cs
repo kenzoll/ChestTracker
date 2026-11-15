@@ -54,9 +54,9 @@ internal sealed partial class ChestRoutes
         [RouteArea.RiverLookout] = new("Площадки под пустынным склоном", new(158, 130), 5, "Двигайтесь вдоль внешней кромки склона."),
         [RouteArea.DuneCamp] = new("Палатки у восточных дюн", new(162, 136), 6, "Проверьте стоянки на песке над береговой дорогой."),
         [RouteArea.BuggyOutskirts] = new("Дорога южнее лагеря Багги", new(124, 114), 5, "Обыщите отдельные домики вдоль южной дороги."),
-        [RouteArea.ResortEast] = new("Домики у северо-западного моста", new(104, 95), 5, "Проверьте строения у моста и край пляжа."),
+        [RouteArea.ResortEast] = new("Мост у Виллы Дружбы", new(104, 95), 5, "Держитесь берега и проверьте постройки у южной стороны моста."),
         [RouteArea.ResortNorth] = new("Северный остров у курорта", new(98, 77), 6, "Пройдите по внешней тропе на маленьком острове."),
-        [RouteArea.ResortWest] = new("Западный пляж у курорта", new(78, 98), 5, "Обойдите песок и постройки вдоль воды."),
+        [RouteArea.ResortWest] = new("Западный пляж у Виллы Дружбы", new(78, 98), 5, "Обойдите песок и постройки вдоль воды."),
         [RouteArea.WestCrossing] = new("Пирсы у западной отмели", new(90, 168), 6, "Осмотрите настилы у отмели и домики выше дороги."),
         [RouteArea.LogueOutskirts] = new("Южная окраина Логтауна", new(123, 180), 6, "Проверьте крайние дома и выход к реке."),
         [RouteArea.WestSlope] = new("Домики у западного обрыва", new(73, 154), 6, "Спуститесь к домикам по внешней тропе.")
@@ -151,6 +151,8 @@ internal sealed partial class ChestRoutes
         new("Тропы над западным проливом", [RouteArea.PinkIslet, RouteArea.WestDocks, RouteArea.WestBluff, RouteArea.WestRoad, RouteArea.WestCrossing, RouteArea.MillCreek, RouteArea.WestPoint]),
         new("Южная протока", [RouteArea.WestPoint, RouteArea.SouthRoad, RouteArea.RingIslet, RouteArea.SouthIslets, RouteArea.HenryShore, RouteArea.SouthDocks]),
         new("Восточные острова и пляжи", [RouteArea.RockCove, RouteArea.RockRidge, RouteArea.RockPoint, RouteArea.EastShoal, RouteArea.EastFarm, RouteArea.EastBluff, RouteArea.FarBeach, RouteArea.SouthBeach, RouteArea.SouthDocks]),
+        new("По суше через лесные руины", [RouteArea.BridgeHuts, RouteArea.StoneFrogs, RouteArea.RiverMid, RouteArea.ForestLookout, RouteArea.ForestTrail]),
+        new("Берег Виллы Дружбы", [RouteArea.ResortWest, RouteArea.ResortEast, RouteArea.NorthShore, RouteArea.ForestTrail, RouteArea.ForestLookout, RouteArea.BuggyOutskirts]),
         new("Речные хижины и дюны", [RouteArea.ForestTrail, RouteArea.ForestLookout, RouteArea.BuggyOutskirts, RouteArea.RiverUpper, RouteArea.RiverMid, RouteArea.RiverLookout, RouteArea.DuneCamp]),
         new("От лесных руин к южному причалу", [RouteArea.StoneFrogs, RouteArea.BridgeHuts, RouteArea.LogueOutskirts, RouteArea.RingIslet, RouteArea.SouthIslets, RouteArea.SouthPier])
     ];
@@ -160,7 +162,7 @@ internal sealed partial class ChestRoutes
         .ToDictionary(group => group.Key, group => group.ToArray());
 
     private static readonly HashSet<RouteArea> MajorStops = [RouteArea.LogueOutskirts];
-    private sealed record Candidate(RouteArea[] Stops, int Count, double Cost, int Sector)
+    private sealed record Candidate(RouteArea[] Stops, int Count, double Cost, int Sector, int Crossings)
     {
         public double Score => Count / (30 + Cost);
         public UInt128 Footprint { get; } = Stops.Aggregate(UInt128.Zero, (mask, stop) => mask | (UInt128.One << (int)stop));
@@ -181,7 +183,8 @@ internal sealed partial class ChestRoutes
         var previous = recent.LastOrDefault();
         var unshown = candidates.Where(candidate => shownRoutes.All(shown => Overlap(candidate, shown) < 1)).ToArray();
         var available = unshown.Length == 0 ? candidates : unshown;
-        var pool = available.Where(candidate => recent.All(shown => Overlap(candidate, shown) <= 0.58)).ToArray();
+        var pool = available.Where(candidate => Overlap(candidate, previous) <= 0.4 &&
+            recent.All(shown => Overlap(candidate, shown) <= 0.58)).ToArray();
         if (pool.Length == 0)
         {
             double leastOverlap = available.Min(candidate => Overlap(candidate, previous));
@@ -189,10 +192,16 @@ internal sealed partial class ChestRoutes
         }
 
         var sectors = pool.GroupBy(candidate => candidate.Sector).ToArray();
-        var differentSector = sectors.Where(sector => sector.Key != previous?.Sector).ToArray();
-        if (differentSector.Length > 0) sectors = differentSector;
-        var sectorPool = sectors[random.Next(sectors.Length)].OrderByDescending(candidate => candidate.Score).ToArray();
-        var choices = sectorPool.Where(candidate => candidate.Score >= sectorPool[0].Score * 0.72).Take(24).ToArray();
+        var lastVisit = recent.Reverse().Select((route, rank) => (route.Sector, rank)).ToLookup(item => item.Sector);
+        int Age(int sector) => lastVisit[sector].Select(item => item.rank).DefaultIfEmpty(recent.Length).Min();
+        int oldest = sectors.Max(sector => Age(sector.Key));
+        var eligibleSectors = sectors.Where(sector => Age(sector.Key) == oldest).ToArray();
+        var sectorPool = eligibleSectors[random.Next(eligibleSectors.Length)].OrderByDescending(candidate => candidate.Score).ToArray();
+        var efficient = sectorPool.Where(candidate => candidate.Score >= sectorPool[0].Score * 0.75).ToArray();
+        var styles = efficient.GroupBy(candidate => Math.Min(candidate.Crossings, 2)).ToArray();
+        var differentStyle = styles.Where(style => style.Key != Math.Min(previous?.Crossings ?? -1, 2)).ToArray();
+        if (differentStyle.Length > 0) styles = differentStyle;
+        var choices = styles[random.Next(styles.Length)].Take(16).ToArray();
         var selected = choices[random.Next(choices.Length)];
         recentRoutes.Enqueue(selected);
         if (recentRoutes.Count > 5) recentRoutes.Dequeue();
@@ -203,7 +212,7 @@ internal sealed partial class ChestRoutes
 
     private Candidate[] BuildCandidates()
     {
-        var guides = Guides.Select(guide => new Candidate(guide.Areas, 0, 0, 0)).ToArray();
+        var guides = Guides.Select(guide => new Candidate(guide.Areas, 0, 0, 0, 0)).ToArray();
         var options = new List<Candidate>();
         var edgeCosts = TrailNeighbors.Values.SelectMany(edges => edges)
             .ToDictionary(edge => (edge.From, edge.To), CrossingCost);
@@ -211,15 +220,15 @@ internal sealed partial class ChestRoutes
         {
             if (outskirtsPins[start].Length < 3) continue;
             var path = new List<RouteArea> { start };
-            Visit(start, outskirtsPins[start].Length, 0, MajorStops.Contains(start) ? 1 : 0);
-            void Visit(RouteArea area, int count, double cost, int majorStops)
+            Visit(start, outskirtsPins[start].Length, 0, MajorStops.Contains(start) ? 1 : 0, 0);
+            void Visit(RouteArea area, int count, double cost, int majorStops, int crossings)
             {
                 if (count >= 40 && path.Count >= 4)
                 {
                     double x = path.Average(stop => Outskirts[stop].Center.X);
                     double y = path.Average(stop => Outskirts[stop].Center.Y);
                     int sector = (x < 112 ? 0 : x < 155 ? 1 : 2) + (y < 120 ? 0 : y < 166 ? 3 : 6);
-                    var candidate = new Candidate(path.ToArray(), count, cost, sector);
+                    var candidate = new Candidate(path.ToArray(), count, cost, sector, crossings);
                     if (guides.All(guide => Overlap(candidate, guide) <= 0.80)) options.Add(candidate);
                 }
                 if (path.Count >= 8) return;
@@ -230,7 +239,7 @@ internal sealed partial class ChestRoutes
                     int nextMajor = majorStops + (MajorStops.Contains(edge.To) ? 1 : 0);
                     if (nextCost > 132 || nextMajor > 1) continue;
                     path.Add(edge.To);
-                    Visit(edge.To, count + outskirtsPins[edge.To].Length, nextCost, nextMajor);
+                    Visit(edge.To, count + outskirtsPins[edge.To].Length, nextCost, nextMajor, crossings + (edge.Water ? 1 : 0));
                     path.RemoveAt(path.Count - 1);
                 }
             }

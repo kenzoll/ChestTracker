@@ -6,8 +6,8 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>ChestTracker</AssemblyName>
     <RootNamespace>ChestTracker</RootNamespace>
-    <Version>6.4.0</Version>
-    <InformationalVersion>6.4</InformationalVersion>
+    <Version>6.5.0</Version>
+    <InformationalVersion>6.5</InformationalVersion>
     <ApplicationIcon>Assets/app.ico</ApplicationIcon>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>

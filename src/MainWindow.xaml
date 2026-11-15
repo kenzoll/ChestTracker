@@ -86,7 +86,7 @@
         <StackPanel><TextBlock Text="CHEST TRACKER" FontSize="23" FontWeight="Bold"/></StackPanel>
       </StackPanel>
       <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
-        <TextBlock Text="6.4" HorizontalAlignment="Right" FontSize="13" Foreground="#FF6675"/>
+        <TextBlock Text="6.5" HorizontalAlignment="Right" FontSize="13" Foreground="#FF6675"/>
       </StackPanel>
     </Grid>
     <Grid Grid.Row="1" Margin="0,0,0,22">
@@ -130,7 +130,7 @@
             <Border Style="{StaticResource Panel}">
               <StackPanel><TextBlock Text="ВСЕГО СУНДУКОВ" Foreground="{StaticResource Muted}" FontSize="11"/>
                 <TextBlock x:Name="TotalNumber" Text="0" FontSize="78" FontWeight="SemiBold" Margin="-4,0,0,0"/>
-                <TextBlock x:Name="TotalCaption" Text="Начальная сумма + сохранённые матчи" Foreground="{StaticResource Muted}" FontSize="12"/>
+                <TextBlock x:Name="TotalCaption" Text="За сессию · 0" Foreground="{StaticResource Muted}" FontSize="12"/>
                 <Button x:Name="ChestEntryButton" Click="ChangeBaseline" HorizontalAlignment="Left" Padding="0,9" Margin="0,13,0,0" Background="Transparent" BorderThickness="0" FontSize="12"/>
               </StackPanel>
             </Border>

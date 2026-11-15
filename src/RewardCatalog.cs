@@ -11,7 +11,7 @@ public sealed record RewardWeek(int Number, DateTime StartUtc, DateTime EndUtc, 
 public static class RewardCatalog
 {
     public const string Source = "https://fortnite.gg/treasure-hunt";
-    public const string Snapshot = "09.11.2026";
+    public const string Snapshot = "15.11.2026";
     private static DateTime U(int day, int month=11, int hour=14) => new(2026,month,day,hour,0,0,DateTimeKind.Utc);
     public static readonly RewardWeek[] Weeks = [
         new(1,U(1),U(8),"A$AP Rocky",[
@@ -26,7 +26,12 @@ public static class RewardCatalog
             new("w2-backbling","Diamond and Gold","Украшение на спину","✦"),
             new("w2-track","London","Музыкальный трек","♪"),
             new("w2-screen","So Kawaii","Экран загрузки","▧")]),
-        new(3,U(15),U(22),"Следующая глава охоты",[]),
+        new(3,U(15),U(22),"Хацунэ Мику",[
+            new("w3-outfit","Solid Gold Miku","Скин","◇"),
+            new("w3-corvette","Chevrolet Corvette ZR1 · Golden Llama Crew","Автомобиль и декаль","↗"),
+            new("w3-backbling","Miku's Takarabako","Украшение на спину","✦"),
+            new("w3-track","PPPP","Музыкальный трек","♪"),
+            new("w3-screen","May Fortune Find You","Экран загрузки","▧")]),
         new(4,U(22),U(29),"Новые сокровища",[]),
         new(5,U(29),U(5,12,19),"Финальная неделя",[])
     ];
@@ -37,6 +42,8 @@ public static class RewardCatalog
         "w1-pickaxe" => "reward-25027.png", "w1-track" => "reward-25144.png", "w1-screen" => "reward-25089.png",
         "w2-outfit" => "reward-25181.png", "w2-backbling" => "reward-25182.png", "w2-track" => "reward-25185.png", "w2-screen" => "reward-25183.png",
         "car-gold-cadillac" => "reward-car-week2.png",
+        "w3-outfit" => "reward-25271.png", "w3-corvette" => "reward-25273.png",
+        "w3-backbling" => "reward-25262.png", "w3-track" => "reward-25274.png", "w3-screen" => "reward-25272.png",
         "pirate-shop-access" => "reward-token.png", _ => throw new InvalidDataException("Нет изображения награды")
     };
     public static RewardWeek Active(DateTime now) => Weeks.LastOrDefault(w => now >= w.StartUtc) ?? Weeks[0];

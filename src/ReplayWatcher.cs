@@ -16,6 +16,7 @@ public sealed class ReplayWatcher(TrackerStore store)
     public int ErrorCount => store.State.Files.Values.Count(f => f.Status == "error");
     public event Action<bool>? Updated;
     public event Action? MatchFinished;
+    public event Action<MatchEntry, DateTime>? ReplayAdded;
     public event Action? MatchStarted;
     private readonly HashSet<string> liveFiles=[];
     private readonly Dictionary<string, long> seenSize = [];
@@ -109,6 +110,7 @@ public sealed class ReplayWatcher(TrackerStore store)
                 Phase = "analyzing"; Status = "Считаю сундуки за матч";
                 Detail = "Читаю события повтора. Окно можно свернуть — игра не прерывается.";
                 Updated?.Invoke(false);
+                var replayUpdatedUtc = file.LastWriteTimeUtc;
                 var result = await AnalyzeAsync(file.FullName, token);
                 token.ThrowIfCancellationRequested();
                 if (result.Status == "waiting") { pending = true; continue; }
@@ -117,7 +119,7 @@ public sealed class ReplayWatcher(TrackerStore store)
 
                 store.State.Files[key] = new() { Status = result.Status, Message = result.Message };
                 if (result.Status == "error") store.Log($"Ошибка {file.Name}: {result.Message}");
-                else if (added) { Phase = "saved"; Status = $"Матч сохранён · +{result.Match!.Total} сундуков"; Detail = result.Match.Categories; }
+                else if (added) { Phase = "saved"; Status = $"Матч сохранён · +{result.Match!.Total} сундуков"; Detail = result.Match.Categories; ReplayAdded?.Invoke(result.Match, replayUpdatedUtc); }
                 changed = true;
                 Updated?.Invoke(added);
                 // Give the game time between CPU-intensive analyses.

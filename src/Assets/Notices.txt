@@ -1,8 +1,8 @@
-Chest Tracker 6.4 — Attribution and third-party licenses
+Chest Tracker 6.5 — Attribution and third-party licenses
 
-Map: Fortnite.gg / Epic Games. Map and chest coordinates obtained from the public season 43 data snapshot published at https://github.com/CheesyPoofs346/chestlab/tree/main/assets/gg . No ChestLab program code is used.
+Map art: Epic Games, via https://fortnite-api.com/images/map.png. Chest coordinates and location labels: https://fortnite.gg/ (season 43, checked 2026-11-15).
 
-Reward catalog source: https://fortnite.gg/treasure-hunt (checked 2026-11-09). Unannounced future reward lists are not fabricated.
+Reward catalog: https://fortnite.gg/treasure-hunt (checked 2026-11-15). Week 3 reward art: Fortnite.gg, Fortnite-API and Epic Games album artwork via fn-api.cc.
 
 dotnet-ThirdPartyNotices.txt
 .NET Runtime uses third-party libraries or other resources that may be

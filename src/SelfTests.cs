@@ -141,8 +141,9 @@ public static class SelfTests
             Require(RewardCatalog.Weeks.Length==5);
             Require(RewardCatalog.Active(new DateTime(2026,11,9,14,0,0,DateTimeKind.Utc)).Number==2);
             Require(RewardCatalog.Weeks[0].Items.Length==5 && RewardCatalog.Weeks[1].Items.Length==5);
-            Require(RewardCatalog.Weeks.Skip(2).All(w=>w.Items.Length==0));
+            Require(RewardCatalog.Weeks[2].Items.Length==5 && RewardCatalog.Weeks.Skip(3).All(w=>w.Items.Length==0));
             Require(RewardCatalog.Weeks[1].Items.Any(r=>r.Name=="Diamond and Gold"));
+            Require(RewardCatalog.Active(new DateTime(2026,11,15,14,0,0,DateTimeKind.Utc)).Items.Any(r=>r.Name=="Solid Gold Miku"));
         });
         Test("Embedded map starts with ordinary buried and rare chests", () =>
         {
@@ -218,11 +219,14 @@ public static class SelfTests
         {
             var store=new TrackerStore(Path.Combine(root,"reward-clicks"));store.State.Animations=false;
             var owner=new MainWindow(store,true){Opacity=0,ShowActivated=false};owner.Show();
+            var weekTabs=(System.Windows.Controls.WrapPanel)owner.FindName("WeekTabs");
+            ((System.Windows.Controls.Button)weekTabs.Children[2]).RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
             var cards=(System.Windows.Controls.WrapPanel)owner.FindName("RewardCards");
+            Require(cards.Children.Count == 6);
             var card=(System.Windows.Controls.Border)cards.Children[0];
             var check=((System.Windows.Controls.Grid)card.Child).Children.OfType<System.Windows.Controls.CheckBox>().Single();
             card.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(System.Windows.Input.Mouse.PrimaryDevice,0,System.Windows.Input.MouseButton.Left){RoutedEvent=UIElement.MouseLeftButtonUpEvent});
-            Require(check.IsChecked==true&&new TrackerStore(store.Folder).State.FoundRewards.Count==1);
+            Require(check.IsChecked==true&&new TrackerStore(store.Folder).State.FoundRewards.SetEquals(["|w3-outfit"]));
             card.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(System.Windows.Input.Mouse.PrimaryDevice,0,System.Windows.Input.MouseButton.Left){RoutedEvent=UIElement.MouseLeftButtonUpEvent});
             Require(check.IsChecked==false&&new TrackerStore(store.Folder).State.FoundRewards.Count==0);
             check.ApplyTemplate();var square=(System.Windows.Controls.Border)check.Template.FindName("Box",check);
@@ -496,6 +500,8 @@ public static class SelfTests
             using var json = JsonDocument.Parse(stream);
             Require(json.RootElement.GetProperty("revision").GetString() == "43.10");
             Require(json.RootElement.GetProperty("labels").EnumerateArray().Any(label => label.GetProperty("name").GetString() == "BUGGY'S BEACHHEAD"));
+            Require(json.RootElement.GetProperty("labels").EnumerateArray().Any(label => label.GetProperty("name").GetString() == "FRIENDSHIP VILLA"));
+            Require(ChestRoutes.Label("FRIENDSHIP VILLA") == "Вилла Дружбы");
             var planner = new ChestRoutes(map.MapPins);
             var coast = planner.Plan(ChestRoutes.Guides.Single(guide => guide.Name == "Северо-восточный берег"));
             Require(coast.Stages.Single(stage => stage.District.Name == "Кольцевой пляж").Pins.Length == 11);

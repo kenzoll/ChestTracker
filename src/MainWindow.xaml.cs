@@ -29,6 +29,8 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer updateTimer=new(){Interval=TimeSpan.FromMinutes(1)};
     private bool refreshing;
     private string previousTotal = "";
+    private readonly DateTime sessionStartedUtc = DateTime.UtcNow;
+    private readonly Dictionary<string, HashSet<string>> sessionMatches = new();
     private static readonly Brush MutedBrush = new SolidColorBrush(Color.FromRgb(181,181,181));
     private sealed record PlayerChoice(string Key, string Name);
     [DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(IntPtr window, int attribute, ref int value, int size);
@@ -42,6 +44,12 @@ public partial class MainWindow : Window
         InitializeSeasonPages();
         watcher = new(store);
         reminder = new(store);
+        watcher.ReplayAdded += (match, replayUpdatedUtc) =>
+        {
+            if (replayUpdatedUtc < sessionStartedUtc) return;
+            if (!sessionMatches.TryGetValue(match.Profile, out var ids)) sessionMatches[match.Profile] = ids = [];
+            ids.Add(match.Id);
+        };
         watcher.Updated += changed => Refresh(changed);
         watcher.MatchFinished += () => { _ = CheckReminder(); };
         watcher.MatchStarted += () => reminder.DismissForMatchStart();
@@ -153,8 +161,9 @@ public partial class MainWindow : Window
             TotalNumber.BeginAnimation(OpacityProperty, new DoubleAnimation(0.35, 1, TimeSpan.FromMilliseconds(350)));
         previousTotal = total;
         ChestEntryButton.Content = store.HasInitialBalance ? "Добавить сундуки" : "Указать начальное количество";
-        TotalCaption.Text = $"Ранее: {store.Baseline:N0}  +  по матчам: {matches.Sum(m => (long)m.Total):N0}";
-        if (store.ManualTotal > 0) TotalCaption.Text += $"  +  вручную: {store.ManualTotal:N0}";
+        long sessionTotal = sessionMatches.TryGetValue(store.State.ActiveProfile, out var sessionIds)
+            ? matches.Where(match => sessionIds.Contains(match.Id)).Sum(match => (long)match.Total) : 0;
+        TotalCaption.Text = $"За сессию · {sessionTotal:N0}";
         var last = matches.FirstOrDefault();
         LastNumber.Text = last?.Total.ToString() ?? "—";
         LastCaption.Text = last == null ? "Появится после завершения матча" : last.DateLabel;
